@@ -8,7 +8,7 @@
       content="모아플로 공통 기반: 휴대전화 인증, 역할·권한, 학원·학생·학부모 연결"
     />
     <title>MoaFlow · 공통 기반</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260727-2" />
   </head>
   <body>
     <div id="toast-region" class="toast-region" aria-live="polite"></div>
@@ -45,23 +45,19 @@
             <p class="supporting">역할에 따라 필요한 정보와 접근 범위가 달라집니다.</p>
             <div class="role-options" role="radiogroup" aria-label="로그인 역할">
               <button class="role-option active" data-auth-role="academy_owner" role="radio" aria-checked="true">
-                <span class="role-icon academy">학원</span>
-                <span><strong>학원 원장</strong><small>학원·구성원·원생 관리</small></span>
+                <strong>학원 원장</strong>
                 <i>선택</i>
               </button>
               <button class="role-option" data-auth-role="academy_instructor" role="radio" aria-checked="false">
-                <span class="role-icon instructor">강사</span>
-                <span><strong>학원 강사</strong><small>허용된 원생·반 업무</small></span>
+                <strong>학원 강사</strong>
                 <i>선택</i>
               </button>
               <button class="role-option" data-auth-role="guardian" role="radio" aria-checked="false">
-                <span class="role-icon guardian">가정</span>
-                <span><strong>학부모</strong><small>인증 후 자녀 연결</small></span>
+                <strong>학부모</strong>
                 <i>선택</i>
               </button>
               <button class="role-option" data-auth-role="operator" role="radio" aria-checked="false">
-                <span class="role-icon operator">운영</span>
-                <span><strong>파일럿 운영자</strong><small>기반 상태·감사 이력 확인</small></span>
+                <strong>운영자</strong>
                 <i>선택</i>
               </button>
             </div>
@@ -126,7 +122,6 @@
         <header class="topbar">
           <button id="mobile-nav-toggle" class="icon-button mobile-only" aria-label="메뉴 열기">☰</button>
           <div>
-            <p id="page-eyebrow" class="eyebrow">FOUNDATION</p>
             <h1 id="page-title">공통 기반 현황</h1>
           </div>
           <div class="account-menu">

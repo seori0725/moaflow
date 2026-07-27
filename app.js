@@ -92,7 +92,7 @@ const initialState = {
   students: [
     {
       id: "std-minjun",
-      name: "김민준",
+      name: "정민준",
       birthDate: "2012-05-18",
       status: "active",
       createdBy: "usr-owner",
@@ -138,7 +138,7 @@ const initialState = {
       studentId: "std-minjun",
       code: "MF-4821",
       token: "secure-demo-token-minjun",
-      expiresAt: "2026-07-25T23:59:59+09:00",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       maxUses: 1,
       usedAt: null,
       status: "sent",
@@ -179,7 +179,7 @@ const initialState = {
       action: "invitation.created",
       targetType: "invitation",
       targetId: "inv-minjun",
-      summary: "김민준 보호자 초대 발급",
+      summary: "정민준 보호자 초대 발급",
       createdAt: "2026-07-24T09:10:00+09:00"
     },
     {
@@ -213,13 +213,11 @@ const navigation = {
     ["audit", "활동 기록"]
   ],
   academy_instructor: [
-    ["home", "내 접근 범위"],
     ["students", "원생 관리"],
     ["permissions", "권한 확인"]
   ],
   guardian: [
     ["home", "자녀 연결 현황"],
-    ["connect", "초대 코드 연결"],
     ["data", "내 정보·동의"]
   ],
   operator: [
@@ -247,6 +245,9 @@ function loadState() {
       ...saved,
       schemaVersion: 5,
       selectedStudentId: null,
+      students: saved.students.map((student) =>
+        student.id === "std-minjun" && student.name === "김민준" ? { ...student, name: "정민준" } : student
+      ),
       academies: saved.academies.map((academy) => ({
         ...academy,
         businessRegistrationNumber:
@@ -255,6 +256,13 @@ function loadState() {
           ""
       })),
       staffClassAssignments: saved.staffClassAssignments || clone(initialState.staffClassAssignments),
+      invitations: saved.invitations.map((invitation) =>
+        invitation.code === "MF-4821" &&
+        invitation.status === "sent" &&
+        new Date(invitation.expiresAt).getTime() < Date.now()
+          ? { ...invitation, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }
+          : invitation
+      ),
       auditLogs: saved.auditLogs.map((log) => {
         const actorMembership = saved.staffMemberships.find(
           (membership) => membership.userId === log.actorUserId && membership.status === "active"
@@ -263,6 +271,7 @@ function loadState() {
         const targetEnrollment = saved.enrollments.find((enrollment) => enrollment.studentId === log.targetId);
         return {
           ...log,
+          summary: log.summary?.replaceAll("김민준", "정민준"),
           academyId:
             log.academyId ||
             actorMembership?.academyId ||
@@ -470,7 +479,7 @@ function completeLogin(event) {
 
   const user = state.users.find((item) => item.role === selectedAuthRole);
   session = { userId: user.id, verifiedAt: new Date().toISOString() };
-  state.activeView = "home";
+  state.activeView = selectedAuthRole === "academy_instructor" ? "students" : "home";
   addAudit("auth.login_succeeded", "user", user.id, `${user.name} 휴대전화 로그인`);
   persistSession();
   persistState();
@@ -503,15 +512,11 @@ function renderShell() {
   const user = currentUser();
   const role = user.role;
   const academy = currentAcademy();
-  const accountBadge = {
-    academy_owner: "원장",
-    academy_instructor: "강사",
-    guardian: "부모",
-    operator: "운영"
-  }[role];
+  const accountBadge = roleMeta[role].label;
   document.body.dataset.role = role;
   document.querySelector("#account-name").textContent = user.name;
   document.querySelector("#account-avatar").textContent = accountBadge;
+  document.querySelector("#account-avatar").setAttribute("aria-label", `${accountBadge} ${user.name}`);
   document.querySelector("#context-label").textContent = roleMeta[role].context;
   const contextName = document.querySelector("#context-name");
   contextName.classList.toggle("academy-name", role.startsWith("academy"));
@@ -531,7 +536,7 @@ function renderShell() {
   }
 
   const allowedViews = navigation[role];
-  if (!allowedViews.some(([id]) => id === state.activeView)) state.activeView = "home";
+  if (!allowedViews.some(([id]) => id === state.activeView)) state.activeView = allowedViews[0][0];
   document.querySelector("#main-nav").innerHTML = allowedViews
     .map(
       ([id, label]) => `
@@ -542,8 +547,7 @@ function renderShell() {
     .join("");
 }
 
-function setPage(eyebrow, title) {
-  document.querySelector("#page-eyebrow").textContent = eyebrow;
+function setPage(_eyebrow, title) {
   document.querySelector("#page-title").textContent = title;
 }
 
@@ -565,7 +569,7 @@ function renderView() {
 
 function renderHome(role) {
   if (role === "guardian") return renderGuardianHome();
-  if (role === "academy_instructor") return renderInstructorHome();
+  if (role === "academy_instructor") return renderStudents();
   if (role === "operator") return renderOperatorHome();
 
   setPage("학원 운영", "학원 홈");
@@ -614,33 +618,6 @@ function renderHome(role) {
   `;
 }
 
-function renderInstructorHome() {
-  setPage("MY ACCESS", "내 접근 범위");
-  const membership = state.staffMemberships.find((item) => item.userId === currentUser().id);
-  const grants = [...permissions.academy_instructor, ...(membership?.grants || [])];
-  return `
-    <section class="hero-panel">
-      <div>
-        <p class="eyebrow eyebrow-accent">ACADEMY INSTRUCTOR</p>
-        <h2>${escapeHtml(currentUser().name)}님에게 필요한 권한만 열려 있어요</h2>
-        <p>학원 정보는 조회하고, 원장이 위임한 범위에서만 원생 정보를 관리할 수 있습니다.</p>
-      </div>
-      <div class="hero-progress"><strong>${grants.length}</strong><span>허용 권한</span></div>
-    </section>
-    <section class="grid three">
-      ${metricCard("기본 역할", "강사", "academy_instructor")}
-      ${metricCard("담당 학원", 1, currentAcademy().name)}
-      ${metricCard("추가 위임", membership?.grants?.length || 0, "원장 변경 가능", true)}
-    </section>
-    <article class="panel">
-      <div class="panel-head"><div><h2>현재 허용 범위</h2><p>권한이 없으면 메뉴와 실행 버튼이 함께 제한됩니다.</p></div></div>
-      <div class="check-list">
-        ${grants.map((grant) => checkItem(permissionLabel(grant), grant)).join("")}
-      </div>
-    </article>
-  `;
-}
-
 function renderGuardianHome() {
   setPage("PARENT FOUNDATION", "자녀 연결 현황");
   const links = state.guardianLinks.filter((item) => item.guardianUserId === currentUser().id && item.status === "verified");
@@ -655,7 +632,7 @@ function renderGuardianHome() {
     </section>
     <section class="grid two">
       <article class="panel">
-        <div class="panel-head"><div><h2>연결된 자녀</h2><p>복수 자녀를 같은 계정에 연결할 수 있습니다.</p></div><button class="button primary compact" data-view-target="connect">초대 코드 연결</button></div>
+        <div class="panel-head"><div><h2>연결된 자녀</h2><p>복수 자녀를 같은 계정에 연결할 수 있습니다.</p></div></div>
         <div class="card-list">
           ${
             links.length
@@ -668,8 +645,8 @@ function renderGuardianHome() {
                       .filter(Boolean);
                     return `
                       <div class="list-card">
-                        <div class="person-avatar">${escapeHtml(student.name.slice(0, 1))}</div>
-                        <div><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(academies.join(" · "))} · 관계 ${escapeHtml(link.relationship)}</small></div>
+                        <div class="person-avatar">학생</div>
+                        <div><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(academies.join(" · "))} · 학생과의 관계 ${escapeHtml(link.relationship)}</small></div>
                         <span class="badge green">관계 확인</span>
                       </div>`;
                   })
@@ -679,12 +656,21 @@ function renderGuardianHome() {
         </div>
       </article>
       <article class="panel">
-        <div class="panel-head"><div><h2>내 정보 보호</h2><p>연결과 동의는 언제든 확인할 수 있습니다.</p></div></div>
-        <div class="check-list">
-          ${checkItem("휴대전화 본인확인 완료", maskPhone(currentUser().phone))}
-          ${checkItem("학생 정보 최소 수집", "연결 확인에 필요한 항목만 저장")}
-          ${checkItem("동의 이력 보관", `활성 동의 ${state.consents.filter((item) => item.guardianUserId === currentUser().id && item.status === "granted").length}건`)}
-        </div>
+        <div class="panel-head"><div><h2>새 자녀 연결</h2><p>학원에서 받은 초대 코드로 자녀를 추가합니다.</p></div></div>
+        <form id="connect-form" class="invite-code-form">
+          <label for="invite-code">초대 코드</label>
+          <input id="invite-code" name="invite-code" placeholder="예: MF-4821" value="MF-4821" autocomplete="off" />
+          <div class="form-grid">
+            <div><label for="child-birth">자녀 생년월일</label><input id="child-birth" name="child-birth" type="date" value="2012-05-18" /></div>
+            <div><label for="relationship">자녀와의 관계</label><select id="relationship" name="relationship"><option>부모</option><option>조부모</option><option>법정대리인</option></select></div>
+          </div>
+          <div class="consent-box">
+            <input id="guardian-consent" name="guardian-consent" type="checkbox" />
+            <label for="guardian-consent">필수 확인 및 동의<small>서비스 이용과 자녀 정보 연결에 필요한 항목을 확인했습니다.</small></label>
+          </div>
+          <button class="button primary block" type="submit" style="margin-top:16px;">확인하고 연결하기</button>
+          <p class="field-hint">데모 연결: MF-4821 · 2012-05-18</p>
+        </form>
       </article>
     </section>
   `;
@@ -1058,36 +1044,28 @@ function renderPermissionsContent(isOwner) {
         </div>
       </article>
       <article class="panel">
-        <div class="panel-head"><div><h2>운영·권한 안내</h2><p>역할과 연결 상태에 따라 필요한 정보만 확인할 수 있습니다.</p></div></div>
-        <div class="check-list">
-          ${checkItem("원장 관리", "학원 정보와 구성원 권한은 원장이 관리")}
-          ${checkItem("강사 권한", "담당 업무에 필요한 기능만 원장이 추가 허용")}
-          ${checkItem("보호자 정보", "연결이 확인된 원생의 보호자 정보만 표시")}
+        <div class="panel-head"><div><h2>권한 설정</h2><p>${isOwner ? `${escapeHtml(instructorName)}에게 필요한 권한만 선택해 허용합니다.` : "내 계정에 현재 적용된 접근 범위입니다."}</p></div></div>
+        <div class="permission-grid">
+          <div class="permission-row header"><span>권한</span><span>원장</span><span>${isOwner ? escapeHtml(instructorName) : "내 권한"}</span></div>
+          ${permissionRows
+            .map(([key, label, detail]) => {
+              const instructorAllowed = permissions.academy_instructor.includes(key) || instructor?.grants?.includes(key);
+              const myAllowed = hasPermission(key);
+              return `
+                <div class="permission-row">
+                  <div class="permission-name"><strong>${label}</strong><small>${detail}</small></div>
+                  <span class="permission-state allowed">항상 허용</span>
+                  ${
+                    isOwner
+                      ? `<button class="switch ${instructorAllowed ? "on" : ""}" data-action="toggle-permission" data-permission="${key}" aria-label="${label} ${instructorAllowed ? "회수" : "부여"}"></button>`
+                      : `<span class="permission-state ${myAllowed ? "allowed" : "denied"}">${myAllowed ? "허용" : "제한"}</span>`
+                  }
+                </div>`;
+            })
+            .join("")}
         </div>
       </article>
     </section>
-    <article class="panel">
-      <div class="panel-head"><div><h2>권한 설정</h2><p>${isOwner ? `${escapeHtml(instructorName)}에게 필요한 권한만 선택해 허용합니다.` : "내 계정에 현재 적용된 접근 범위입니다."}</p></div></div>
-      <div class="permission-grid">
-        <div class="permission-row header"><span>권한</span><span>원장</span><span>${isOwner ? escapeHtml(instructorName) : "내 권한"}</span></div>
-        ${permissionRows
-          .map(([key, label, detail]) => {
-            const instructorAllowed = permissions.academy_instructor.includes(key) || instructor?.grants?.includes(key);
-            const myAllowed = hasPermission(key);
-            return `
-              <div class="permission-row">
-                <div class="permission-name"><strong>${label}</strong><small>${detail}</small></div>
-                <span class="permission-state allowed">항상 허용</span>
-                ${
-                  isOwner
-                    ? `<button class="switch ${instructorAllowed ? "on" : ""}" data-action="toggle-permission" data-permission="${key}" aria-label="${label} ${instructorAllowed ? "회수" : "부여"}"></button>`
-                    : `<span class="permission-state ${myAllowed ? "allowed" : "denied"}">${myAllowed ? "허용" : "제한"}</span>`
-                }
-              </div>`;
-          })
-          .join("")}
-      </div>
-    </article>
   `;
 }
 
@@ -1135,7 +1113,7 @@ function renderConnect() {
         ? `<article class="panel"><div class="panel-head"><div><h2>기존 연결</h2><p>이미 확인된 자녀 관계입니다.</p></div></div><div class="card-list">${userLinks
             .map((link) => {
               const student = studentById(link.studentId);
-              return `<div class="list-card"><div class="person-avatar">${escapeHtml(student.name.slice(0, 1))}</div><div><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(link.relationship)} · ${formatDateTime(link.verifiedAt)} 확인</small></div><span class="badge green">연결 완료</span></div>`;
+              return `<div class="list-card"><div class="person-avatar">학생</div><div><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(link.relationship)} · ${formatDateTime(link.verifiedAt)} 확인</small></div><span class="badge green">연결 완료</span></div>`;
             })
             .join("")}</div></article>`
         : ""
@@ -1216,30 +1194,44 @@ function renderData() {
 function renderGuardianData() {
   setPage("PRIVACY & CONSENT", "내 정보·동의");
   const userConsents = state.consents.filter((item) => item.guardianUserId === currentUser().id);
+  const userLinks = state.guardianLinks.filter(
+    (item) => item.guardianUserId === currentUser().id && item.status === "verified"
+  );
   return `
     <section class="grid two">
       <article class="panel">
         <div class="panel-head"><div><h2>계정 정보</h2><p>본인확인된 최소 정보만 저장합니다.</p></div></div>
-        <div class="check-list">
+        <div class="check-list account-info-list">
           ${checkItem("이름", currentUser().name)}
           ${checkItem("휴대전화", maskPhone(currentUser().phone))}
-          ${checkItem("계정 역할", "학부모")}
+          ${checkItem("연결 자녀", `${userLinks.length}명`)}
         </div>
       </article>
       <article class="panel">
-        <div class="panel-head"><div><h2>동의 이력</h2><p>동의 버전·방법·시각을 보관합니다.</p></div></div>
-        <div class="card-list">
-          ${
-            userConsents.length
-              ? userConsents
-                  .map((consent) => {
-                    const student = studentById(consent.studentId);
-                    return `<div class="list-card"><div class="activity-icon">동의</div><div><strong>${student?.name || "자녀"} 정보 연결</strong><small>v${consent.version} · ${formatDateTime(consent.grantedAt)} · 휴대전화 인증</small></div><span class="badge green">유효</span></div>`;
-                  })
-                  .join("")
-              : '<div class="empty-state">저장된 동의가 없습니다.</div>'
-          }
-        </div>
+        <div class="panel-head"><div><h2>보호·동의 현황</h2><p>보호 상태와 자녀별 동의 기록을 함께 확인합니다.</p></div></div>
+        <section class="panel-subsection">
+          <h3 class="panel-subsection-title">내 정보 보호</h3>
+          <div class="check-list">
+            ${checkItem("휴대전화 본인확인 완료", maskPhone(currentUser().phone))}
+            ${checkItem("학생 정보 최소 수집", "연결 확인에 필요한 항목만 저장")}
+            ${checkItem("동의 이력 보관", `유효 동의 ${userConsents.filter((item) => item.status === "granted").length}건`)}
+          </div>
+        </section>
+        <section class="panel-subsection">
+          <h3 class="panel-subsection-title">자녀 연결 동의 이력</h3>
+          <div class="card-list">
+            ${
+              userConsents.length
+                ? userConsents
+                    .map((consent) => {
+                      const student = studentById(consent.studentId);
+                      return `<div class="list-card"><div class="activity-icon">동의</div><div><strong>${student?.name || "자녀"} 정보 연결</strong><small>v${consent.version} · ${formatDateTime(consent.grantedAt)} · 휴대전화 인증</small></div><span class="badge green">유효</span></div>`;
+                    })
+                    .join("")
+                : '<div class="empty-state">저장된 동의가 없습니다.</div>'
+            }
+          </div>
+        </section>
       </article>
     </section>
     <article class="panel">

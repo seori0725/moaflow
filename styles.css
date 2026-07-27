@@ -238,9 +238,8 @@ a:focus-visible {
 .role-option {
   min-height: 70px;
   padding: 12px;
-  display: grid;
-  grid-template-columns: 46px 1fr auto;
-  gap: 12px;
+  display: flex;
+  gap: 24px;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -262,9 +261,9 @@ a:focus-visible {
   box-shadow: 0 0 0 1px var(--primary);
 }
 
-.role-option > span:nth-child(2) {
-  display: grid;
-  gap: 3px;
+.role-option > strong {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .role-option small {
@@ -273,10 +272,13 @@ a:focus-visible {
 }
 
 .role-option i {
+  min-width: 28px;
+  margin-left: auto;
   color: transparent;
   font-size: 11px;
   font-style: normal;
   font-weight: 700;
+  text-align: right;
 }
 
 .role-option.active i {
@@ -608,6 +610,8 @@ body[data-role="academy_instructor"] .workspace-context {
   color: var(--ocean);
   background: var(--ice);
   font-weight: 800;
+  font-size: 11px;
+  letter-spacing: -0.2px;
 }
 
 .account-avatar {
@@ -620,12 +624,16 @@ body[data-role="academy_instructor"] .workspace-context {
 }
 
 .account-copy {
-  min-width: 88px;
+  width: 96px;
+  min-width: 0;
   display: grid;
 }
 
 .account-copy strong {
+  overflow: hidden;
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account-copy span {
@@ -864,6 +872,18 @@ body[data-role="academy_instructor"] .workspace-context {
   gap: 9px;
 }
 
+.panel-subsection + .panel-subsection {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.panel-subsection-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
 .check-item,
 .activity-item,
 .list-card {
@@ -896,6 +916,27 @@ body[data-role="academy_instructor"] .workspace-context {
   min-width: 0;
   display: grid;
   gap: 3px;
+}
+
+.account-info-list .check-item > div {
+  flex: 1;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.account-info-list .check-item strong {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.account-info-list .check-item small {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .check-item strong,
@@ -1744,7 +1785,7 @@ body[data-role="academy_instructor"] .workspace-context {
   }
 
   .role-option {
-    grid-template-columns: 42px 1fr;
+    min-height: 60px;
   }
 
   .role-option i {

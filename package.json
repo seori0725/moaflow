@@ -1,0 +1,11 @@
+{
+  "name": "moaflow-phase-2-core-flow",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/core-flow.test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}

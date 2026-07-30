@@ -39,6 +39,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--page);
+  font-size: 13px;
   font-family: "Pretendard Variable", Pretendard, "Malgun Gothic", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -1151,6 +1152,50 @@ body[data-role="academy_instructor"] .workspace-context {
   table-layout: fixed;
 }
 
+.student-list-panel-head {
+  align-items: center;
+}
+
+.student-list-controls {
+  width: 100%;
+  max-width: 520px;
+  margin-left: auto;
+  display: block;
+}
+
+.student-list-controls input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  font-size: 12px;
+}
+
+.student-table .student-filter-header-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 24px 4px 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink-soft);
+  background-color: transparent;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.student-table .student-filter-header-select:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.student-list-panel-head > .row-actions {
+  margin-left: 0;
+}
+
+#student-filter-empty {
+  margin-top: 12px;
+}
+
 .student-table .col-student {
   width: 9%;
 }
@@ -1737,6 +1782,327 @@ body[data-role="academy_instructor"] .workspace-context {
   font-size: 10px;
 }
 
+.homework-head-fields,
+.test-meta-fields {
+  margin-bottom: 14px;
+}
+
+.horizontal-metrics.homework-metrics .metric-card strong {
+  font-size: 16px;
+}
+
+#homework-selected-count {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.homework-table {
+  min-width: 820px;
+  table-layout: fixed;
+}
+
+.homework-table .homework-col-selection {
+  width: 110px;
+}
+
+.homework-table .homework-col-student {
+  width: 120px;
+}
+
+.homework-table .homework-col-status {
+  width: 280px;
+}
+
+.homework-table .homework-col-current {
+  width: 110px;
+}
+
+.homework-table th,
+.homework-table td {
+  padding-right: 12px;
+  padding-left: 12px;
+}
+
+.homework-table .selection-column {
+  text-align: center;
+}
+
+.homework-select-all-label {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.homework-table .homework-header-select {
+  width: auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 28px 4px 6px;
+  border: 0;
+  color: var(--ink);
+  background-color: transparent;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.homework-table .homework-status-header .homework-header-select {
+  width: 150px;
+}
+
+.homework-table .homework-current-header .homework-header-select {
+  width: 92px;
+}
+
+.homework-table td:nth-child(2) {
+  padding-left: 8px;
+}
+
+.homework-table .homework-status-select,
+.homework-table td:nth-child(4) input {
+  width: 100%;
+  min-width: 0;
+}
+
+.homework-table .homework-row-check,
+.homework-table #homework-select-all {
+  width: 17px;
+  min-width: 17px;
+  min-height: 17px;
+}
+
+.student-homework-history {
+  min-width: 680px;
+}
+
+.student-test-history {
+  min-width: 820px;
+}
+
+.student-consultation-history {
+  min-width: 900px;
+}
+
+.student-analytics-section {
+  display: grid;
+  gap: 20px;
+}
+
+.student-analytics-section .analytics-control-panel {
+  padding-bottom: 20px;
+}
+
+.student-analytics-section .analytics-metrics.embedded {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.student-analytics-section .analytics-metrics.embedded .metric-card {
+  border-radius: 12px;
+  background: var(--ice);
+  box-shadow: none;
+}
+
+.student-recent-learning {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.phase-three-table {
+  min-width: 720px;
+  font-size: 12px;
+}
+
+.phase-three-table select {
+  min-width: 130px;
+}
+
+.phase-three-table input {
+  min-width: 150px;
+}
+
+.test-result-table {
+  min-width: 900px;
+}
+
+.test-result-table input[type="number"] {
+  min-width: 88px;
+  width: 88px;
+}
+
+.settings-strip {
+  margin-bottom: 16px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--page);
+}
+
+.settings-strip label {
+  margin-top: 0;
+}
+
+.history-summary {
+  margin-top: 14px;
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.attendance-save-bar.action-only {
+  justify-content: flex-end;
+}
+
+.analytics-control-panel {
+  padding-bottom: 14px;
+}
+
+.analytics-control-panel .panel-head {
+  margin-bottom: 12px;
+}
+
+.analytics-control-panel select {
+  width: auto;
+  min-width: 180px;
+}
+
+.period-tabs {
+  display: flex;
+  gap: 7px;
+}
+
+.phase-three-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.summary-cell {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  gap: 5px;
+  border-right: 1px solid var(--line);
+  background: var(--page);
+}
+
+.summary-cell:last-child {
+  border-right: 0;
+}
+
+.summary-cell span {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.summary-cell strong {
+  overflow: hidden;
+  font-family: Raleway, sans-serif;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.analysis-list > div {
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.analysis-list span,
+.analysis-list small {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.analysis-list strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.consultation-highlight {
+  padding: 16px;
+  display: grid;
+  gap: 7px;
+  border: 1px solid #cce9ee;
+  border-radius: 12px;
+  background: var(--ice);
+}
+
+.consultation-highlight span {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.consultation-highlight p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.consultation-highlight + .notice {
+  margin-top: 12px;
+}
+
+.consultation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.consultation-item {
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--page);
+}
+
+.consultation-item > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.consultation-item p,
+.consultation-item small {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 .history-list {
   margin-top: 18px;
   display: grid;
@@ -2321,6 +2687,20 @@ body[data-role="academy_instructor"] .workspace-context {
     flex-direction: column;
   }
 
+  .student-list-controls {
+    max-width: none;
+    margin-left: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .student-list-panel-head > .row-actions {
+    width: 100%;
+  }
+
+  .student-list-panel-head > .row-actions .button {
+    flex: 1;
+  }
+
   .section-heading {
     align-items: stretch;
     flex-direction: column;
@@ -2370,6 +2750,28 @@ body[data-role="academy_instructor"] .workspace-context {
 
   .form-grid .full {
     grid-column: auto;
+  }
+
+  .settings-strip,
+  .phase-three-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-cell {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .summary-cell:last-child {
+    border-bottom: 0;
+  }
+
+  .analysis-list > div {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-control-panel select {
+    width: 100%;
   }
 
   .class-change-control,

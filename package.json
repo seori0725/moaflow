@@ -1,6 +1,6 @@
 {
-  "name": "moaflow-phase-2-core-flow",
-  "version": "0.2.0",
+  "name": "moaflow-phase-3-academy-expansion",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "test": "node --test tests/core-flow.test.cjs"

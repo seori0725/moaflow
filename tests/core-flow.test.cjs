@@ -374,7 +374,186 @@ test("학부모는 같은 자녀의 새 학원을 추가 연결한다", async ()
   await context.close();
 });
 
-test("기존 저장 데이터는 schema v11 구조로 안전하게 변환된다", async () => {
+test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 확인한다", async () => {
+  const { context, page } = await openAs("usr-guardian");
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  async function connect(code) {
+    await page.locator('[data-action="open-guardian-connect-modal"]').click();
+    await page.locator("#invite-code").fill(code);
+    await page.locator("#child-birth").fill("2012-05-18");
+    await page.locator("#guardian-consent").check();
+    await page.locator("#connect-form").evaluate((form) => form.requestSubmit());
+  }
+
+  await connect("MF-4821");
+  await connect("MF-5932");
+  assert.deepEqual(await page.locator("#guardian-academy-filter option").allTextContents(), [
+    "모든 학원",
+    "브릿지영어학원",
+    "에듀수학학원"
+  ]);
+  await page.locator("#guardian-academy-filter").selectOption("acd-bridge");
+  assert.deepEqual(
+    [...new Set(await page.locator(".guardian-event .source-tag").allTextContents())],
+    ["브릿지영어학원"]
+  );
+
+  await page.locator('[data-view="growth"]').click();
+  const harinGrowth = page.locator(".guardian-growth-card").filter({ hasText: "정하린 성장 리포트" });
+  assert.equal(await harinGrowth.locator(".growth-point").count(), 3);
+  assert.match(await harinGrowth.innerText(), /\+7점/);
+
+  await page.locator('[data-view="comments"]').click();
+  await page.locator("#guardian-academy-filter").selectOption("all");
+  assert.match(await page.locator("#view-root").innerText(), /스스로 질문하고 오답을 정리하는 힘/);
+  assert.doesNotMatch(await page.locator("#view-root").innerText(), /수업 참여도와 질문 빈도/);
+
+  await page.locator('[data-view="notifications"]').click();
+  const notificationScope = await page.evaluate(() => {
+    const events = guardianNotificationEvents();
+    return {
+      types: [...new Set(events.map((item) => item.type))],
+      onlyActionRequired: events.every((item) => {
+        if (item.type === "출결") return ["지각 등원", "조퇴", "결석"].includes(item.title);
+        if (item.type === "과제") return ["orange", "red"].includes(item.tone);
+        return ["테스트", "코멘트", "답변"].includes(item.type);
+      })
+    };
+  });
+  assert.deepEqual(notificationScope.types.sort(), ["과제", "출결", "코멘트", "테스트"].sort());
+  assert.equal(notificationScope.onlyActionRequired, true);
+  assert.doesNotMatch(await page.locator("#view-root").innerText(), /정상 등원|일차함수 · 42~47쪽/);
+  const before = await page.locator(".notification-item.unread").count();
+  assert.ok(before > 0);
+  await page.locator(".notification-item.unread").first().click();
+  assert.equal(await page.locator(".notification-item.unread").count(), before - 1);
+  await page.locator('[data-action="mark-all-notifications-read"]').click();
+  assert.equal(await page.locator(".notification-item.unread").count(), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("학부모와 학원은 공개 코멘트에서 답변을 주고받고 새 답변 알림을 확인한다", async () => {
+  const { context, page } = await openAs("usr-guardian");
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  async function switchUser(userId) {
+    await page.evaluate((id) => {
+      session = { userId: id, verifiedAt: new Date().toISOString() };
+      state.activeView = "home";
+      persistSession();
+      persistState();
+      render();
+    }, userId);
+  }
+
+  await page.locator('[data-view="comments"]').click();
+  const guardianComment = page
+    .locator(".guardian-comment")
+    .filter({ hasText: "스스로 질문하고 오답을 정리하는 힘" });
+  await guardianComment.locator('textarea[name="reply-body"]').fill("집에서도 오답 정리를 이어가겠습니다.");
+  await guardianComment.locator(".comment-reply-form").evaluate((form) => form.requestSubmit());
+  assert.match(await guardianComment.innerText(), /학부모 박지연/);
+  assert.match(await guardianComment.innerText(), /집에서도 오답 정리를 이어가겠습니다/);
+
+  await switchUser("usr-owner");
+  await page.locator('[data-view="consultations"]').click();
+  await page.locator("#consultation-student").selectOption("std-harin");
+  const academyComment = page
+    .locator(".consultation-item")
+    .filter({ hasText: "스스로 질문하고 오답을 정리하는 힘" });
+  assert.match(await academyComment.innerText(), /집에서도 오답 정리를 이어가겠습니다/);
+  await academyComment.locator('textarea[name="reply-body"]').fill("다음 수업에서 오답 노트를 함께 확인하겠습니다.");
+  await academyComment.locator(".comment-reply-form").evaluate((form) => form.requestSubmit());
+  assert.match(await academyComment.innerText(), /원장 한도담/);
+
+  await switchUser("usr-guardian");
+  await page.locator('[data-view="comments"]').click();
+  assert.match(await page.locator("#view-root").innerText(), /다음 수업에서 오답 노트를 함께 확인하겠습니다/);
+  await page.locator('[data-view="notifications"]').click();
+  const replyNotification = page
+    .locator(".notification-item")
+    .filter({ hasText: "선생님 답변이 도착했습니다" });
+  assert.equal(await replyNotification.count(), 1);
+  assert.match(await replyNotification.innerText(), /오답 노트를 함께 확인/);
+
+  const saved = await page.evaluate(() => ({
+    replies: state.guardianCommentReplies,
+    replyAudits: state.auditLogs.filter((item) => item.action === "consultation.reply_added")
+  }));
+  assert.deepEqual(saved.replies.map((item) => item.authorRole), ["guardian", "academy"]);
+  assert.equal(saved.replyAudits.length, 2);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("강사는 담당 학생에게 공개 코멘트를 보내고 학부모 답변을 확인한다", async () => {
+  const { context, page } = await openAs("usr-teacher");
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  async function switchUser(userId) {
+    await page.evaluate((id) => {
+      session = { userId: id, verifiedAt: new Date().toISOString() };
+      state.activeView = "home";
+      persistSession();
+      persistState();
+      render();
+    }, userId);
+  }
+
+  assert.equal(await page.locator('[data-view="consultations"]').count(), 0);
+  await page.locator('[data-view="academy_comments"]').click();
+  assert.deepEqual(await page.locator("#academy-comment-student option").allTextContents(), [
+    "정민준 · 중등 수학 심화반",
+    "정하린 · 중등 수학 심화반"
+  ]);
+  await page.locator("#academy-comment-student").selectOption("std-harin");
+  await page
+    .locator("#academy-comment-body")
+    .fill("수업 집중도가 좋아졌고 스스로 질문하는 횟수가 늘었습니다.");
+  await page.locator("#academy-comment-form").evaluate((form) => form.requestSubmit());
+  assert.match(await page.locator("#view-root").innerText(), /수업 집중도가 좋아졌고/);
+
+  await switchUser("usr-guardian");
+  await page.locator('[data-view="comments"]').click();
+  const guardianComment = page
+    .locator(".guardian-comment")
+    .filter({ hasText: "수업 집중도가 좋아졌고" });
+  await guardianComment.locator('textarea[name="reply-body"]').fill("가정에서도 질문 내용을 함께 확인하겠습니다.");
+  await guardianComment.locator(".comment-reply-form").evaluate((form) => form.requestSubmit());
+
+  await switchUser("usr-teacher");
+  assert.equal(await page.locator('[data-view="academy_comments"] .nav-unread-count').textContent(), "1");
+  await page.locator('[data-view="academy_comments"]').click();
+  const academyComment = page
+    .locator(".academy-comment-item")
+    .filter({ hasText: "수업 집중도가 좋아졌고" });
+  assert.match(await academyComment.innerText(), /새 답변 1/);
+  assert.match(await academyComment.innerText(), /가정에서도 질문 내용을 함께 확인/);
+  await academyComment.locator('[data-action="mark-academy-comment-read"]').click();
+  assert.equal(await page.locator('[data-view="academy_comments"] .nav-unread-count').count(), 0);
+  assert.doesNotMatch(await academyComment.innerText(), /새 답변/);
+  await academyComment.locator('textarea[name="reply-body"]').fill("확인해주셔서 감사합니다.");
+  await academyComment.locator(".comment-reply-form").evaluate((form) => form.requestSubmit());
+
+  await switchUser("usr-guardian");
+  await page.locator('[data-view="notifications"]').click();
+  assert.equal(
+    await page
+      .locator(".notification-item")
+      .filter({ hasText: "확인해주셔서 감사합니다." })
+      .count(),
+    1
+  );
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("기존 저장 데이터는 schema v14 구조로 안전하게 변환된다", async () => {
   const { context, page } = await openAs("usr-owner");
   await page.evaluate(() => {
     persistState();
@@ -420,7 +599,7 @@ test("기존 저장 데이터는 schema v11 구조로 안전하게 변환된다"
       state.consultationRecords
     ]
   }));
-  assert.equal(result.schemaVersion, 11);
+  assert.equal(result.schemaVersion, 14);
   assert.equal(result.studentHasStatus, false);
   assert.equal(result.assignment.id, "sca-teacher-math-advanced");
   assert.equal(result.assignment.className, "중등 수학 심화반");

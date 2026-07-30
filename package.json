@@ -1,8 +1,9 @@
 {
-  "name": "moaflow-phase-3-academy-expansion",
-  "version": "0.3.0",
+  "name": "moaflow-phase-4-guardian-expansion",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
+    "start": "node server.cjs",
     "test": "node --test tests/core-flow.test.cjs"
   },
   "devDependencies": {

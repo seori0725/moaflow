@@ -1,19 +1,23 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "firebase-public",
+    "predeploy": "node scripts/prepare-firebase-hosting.cjs",
     "ignore": [
       "firebase.json",
-      ".firebaserc",
       "**/.*",
-      "**/node_modules/**",
-      "README.md",
-      "package.json",
-      "package-lock.json",
-      "server.cjs",
-      "tests/**"
+      "**/node_modules/**"
     ],
     "cleanUrls": true,
     "headers": [
+      {
+        "source": "/",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
       {
         "source": "/index.html",
         "headers": [

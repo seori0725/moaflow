@@ -1,6 +1,6 @@
 {
-  "name": "moaflow-phase-4-guardian-expansion",
-  "version": "0.4.0",
+  "name": "moaflow-phase-5-operator-completion",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "start": "node server.cjs",

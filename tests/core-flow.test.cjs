@@ -253,6 +253,206 @@ test("운영자 오늘 입력률은 여러 날짜 기록이 있어도 100%를 �
   await context.close();
 });
 
+test("운영자는 기간별 입력·조회율과 파일럿 상태를 관리한다", async () => {
+  const { context, page } = await openAs("usr-operator");
+  assert.equal(await page.locator("#page-title").textContent(), "운영 현황");
+  assert.deepEqual(
+    (await page.locator("#main-nav .nav-item").allTextContents()).map((item) => item.trim()),
+    ["운영 현황", "서비스 이용", "파일럿 학원", "오류·문의", "공통 데이터 구조", "전체 감사 이력"]
+  );
+  assert.equal(await page.locator("#operator-metric-window").inputValue(), "7");
+  assert.equal(await page.locator(".data-table tbody tr").count(), 2);
+  const rates = await page.locator(".horizontal-metrics .metric-card strong").allTextContents();
+  assert.equal(rates.slice(1).every((value) => Number.parseInt(value, 10) <= 100), true);
+
+  await page.locator("#operator-metric-window").selectOption("30");
+  assert.equal(await page.locator("#operator-metric-window").inputValue(), "30");
+  assert.equal(await page.evaluate(() => state.operatorMetricWindow), "30");
+
+  await page.locator('[data-view="pilots"]').click();
+  const dodamRow = page.locator(".data-table tbody tr").filter({ hasText: "에듀수학학원" });
+  assert.equal(await dodamRow.locator("td").first().innerText(), "에듀수학학원");
+  assert.doesNotMatch(await dodamRow.innerText(), /서울시 마포구 월드컵로 12/);
+  await dodamRow.getByRole("button", { name: "학원 정보" }).click();
+  assert.equal(await page.locator("#modal-title").textContent(), "에듀수학학원");
+  assert.match(await page.locator("#modal").innerText(), /한도담/);
+  assert.match(await page.locator("#modal").innerText(), /123-45-67890/);
+  assert.match(await page.locator("#modal").innerText(), /서울시 마포구 월드컵로 12/);
+  await page.locator('[data-action="close-modal"]').click();
+  const bridgeRow = page.locator(".data-table tbody tr").filter({ hasText: "브릿지영어학원" });
+  await bridgeRow.locator("[data-pilot-status]").selectOption("active");
+  await bridgeRow.locator('[data-action="save-pilot-status"]').click();
+  const result = await page.evaluate(() => ({
+    status: state.academies.find((item) => item.id === "acd-bridge").pilotStatus,
+    audit: state.auditLogs.find(
+      (item) => item.action === "pilot.status_changed" && item.targetId === "acd-bridge"
+    )
+  }));
+  assert.equal(result.status, "active");
+  assert.match(result.audit.summary, /준비 중 → 운영 중/);
+  assert.match(await bridgeRow.innerText(), /운영 중/);
+  await context.close();
+});
+
+test("운영자 전체 조회율은 학원별 보호자 연결 단위로 집계한다", async () => {
+  const { context, page } = await openAs("usr-operator");
+  await page.evaluate(() => {
+    state.guardianLinks.push({
+      id: "gln-cross-academy",
+      academyId: "acd-bridge",
+      guardianUserId: "usr-guardian",
+      studentId: "std-minjun",
+      relationship: "부",
+      status: "verified",
+      verifiedAt: new Date().toISOString()
+    });
+    renderView();
+  });
+  const viewRate = await page.locator(".horizontal-metrics .metric-card strong").nth(3).textContent();
+  assert.equal(viewRate, "50%");
+  await context.close();
+});
+
+test("운영자는 오류·문의를 접수하고 처리 이력을 남긴다", async () => {
+  const { context, page } = await openAs("usr-operator");
+  await page.locator('[data-view="support"]').click();
+  assert.equal(await page.locator("#page-title").textContent(), "오류·문의");
+  assert.equal(
+    await page.locator("#support-create-form").evaluate((form) => getComputedStyle(form).rowGap),
+    "20px"
+  );
+  assert.deepEqual(
+    await page.locator("#support-create-form > label").evaluateAll((labels) =>
+      labels.map((label) => ({
+        display: getComputedStyle(label).display,
+        gap: getComputedStyle(label).gap,
+        marginTop: getComputedStyle(label).marginTop
+      }))
+    ),
+    Array(5).fill({ display: "grid", gap: "8px", marginTop: "0px" })
+  );
+
+  await page.locator("#support-academy").selectOption("acd-bridge");
+  await page.locator("#support-type").selectOption("error");
+  await page.locator("#support-priority").selectOption("high");
+  await page.locator("#support-title").fill("CSV 업로드 완료 화면 확인 필요");
+  await page.locator("#support-detail").fill("오류 행 표시가 접힌 상태로 보여 확인을 요청합니다.");
+  await page.locator("#support-create-form").evaluate((form) => form.requestSubmit());
+
+  const created = await page.evaluate(() =>
+    state.supportRequests.find((item) => item.title === "CSV 업로드 완료 화면 확인 필요")
+  );
+  assert.equal(created.status, "open");
+  assert.equal(created.academyId, "acd-bridge");
+
+  const card = page.locator(".support-card").filter({ hasText: "CSV 업로드 완료 화면 확인 필요" });
+  assert.match(await card.innerText(), /긴급/);
+  await card.locator("[data-support-status]").selectOption("resolved");
+  await card.locator("[data-support-note]").fill("오류 행을 자동으로 펼치도록 안내했습니다.");
+  await card.locator('[data-action="save-support-request"]').click();
+
+  const resolved = await page.evaluate(() => {
+    const request = state.supportRequests.find(
+      (item) => item.title === "CSV 업로드 완료 화면 확인 필요"
+    );
+    return {
+      status: request.status,
+      resolution: request.resolution,
+      history: request.history,
+      audits: state.auditLogs.filter(
+        (item) => item.targetId === request.id && item.action.startsWith("support.")
+      )
+    };
+  });
+  assert.equal(resolved.status, "resolved");
+  assert.match(resolved.resolution, /자동으로 펼치도록 안내/);
+  assert.equal(resolved.history.length, 1);
+  assert.equal(resolved.audits.length, 2);
+  assert.match(await card.innerText(), /완료/);
+  await context.close();
+});
+
+test("운영자는 학습분석과 성장추이의 활용률·재방문을 확인한다", async () => {
+  const { context, page } = await openAs("usr-owner");
+  await page.locator('[data-view="analytics"]').click();
+  await page.locator('[data-action="analytics-period"][data-period="weekly"]').click();
+  assert.equal(
+    await page.evaluate(() =>
+      state.usageEvents.some(
+        (item) =>
+          item.userId === "usr-owner" &&
+          item.type === "academy.analytics_viewed"
+      )
+    ),
+    true
+  );
+  assert.equal(
+    await page.evaluate(() =>
+      state.usageEvents.some(
+        (item) =>
+          item.userId === "usr-owner" &&
+          item.type === "academy.analytics_filter_used"
+      )
+    ),
+    true
+  );
+
+  await page.evaluate(() => {
+    session = { userId: "usr-guardian", verifiedAt: new Date().toISOString() };
+    state.activeView = "growth";
+    persistSession();
+    persistState();
+    render();
+  });
+  assert.equal(
+    await page.evaluate(() =>
+      state.usageEvents.some(
+        (item) =>
+          item.userId === "usr-guardian" &&
+          item.type === "guardian.growth_viewed"
+      )
+    ),
+    true
+  );
+
+  await page.evaluate(() => {
+    session = { userId: "usr-operator", verifiedAt: new Date().toISOString() };
+    state.activeView = "usage";
+    persistSession();
+    persistState();
+    render();
+  });
+  assert.equal(await page.locator("#page-title").textContent(), "서비스 이용 현황");
+  assert.deepEqual(
+    await page.locator(".horizontal-metrics .metric-card > span").allTextContents(),
+    ["학습분석 활용률", "성장추이 조회율", "재방문율", "미활용 학원"]
+  );
+  assert.equal(await page.locator("#operator-usage-window").inputValue(), "7");
+  assert.equal(await page.locator(".usage-table tbody tr").count(), 2);
+  assert.match(
+    await page.locator(".usage-table tbody tr").filter({ hasText: "에듀수학학원" }).innerText(),
+    /활발/
+  );
+  const operatorText = await page.locator("#view-root").innerText();
+  assert.doesNotMatch(operatorText, /정민준|정하린|오지후|92점|85점/);
+  await page.locator("#operator-usage-window").selectOption("30");
+  assert.equal(await page.evaluate(() => state.operatorUsageWindow), "30");
+  await context.close();
+});
+
+test("운영자 주요 화면은 모바일에서 가로 넘침이 없다", async () => {
+  const { context, page } = await openAs("usr-operator", { width: 390, height: 844 });
+  for (const view of ["home", "usage", "pilots", "support"]) {
+    await page.locator(`[data-view="${view}"]`).evaluate((element) => element.click());
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth),
+      false,
+      `${view} 화면에 가로 넘침이 있습니다.`
+    );
+  }
+  await context.close();
+});
+
 test("학습기록의 과제·특이사항을 저장하고 이전 기록과 학부모 홈에 반영한다", async () => {
   const { context, page } = await openAs("usr-teacher");
   await page.locator('[data-view="learning"]').click();
@@ -389,6 +589,20 @@ test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 �
 
   await connect("MF-4821");
   await connect("MF-5932");
+  assert.deepEqual(
+    await page.evaluate(() =>
+      [...new Set(
+        state.usageEvents
+          .filter(
+            (item) =>
+              item.userId === "usr-guardian" &&
+              item.type === "guardian.home_viewed"
+          )
+          .map((item) => item.academyId)
+      )].sort()
+    ),
+    ["acd-bridge", "acd-dodam"]
+  );
   assert.deepEqual(await page.locator("#guardian-academy-filter option").allTextContents(), [
     "모든 학원",
     "브릿지영어학원",
@@ -553,7 +767,7 @@ test("강사는 담당 학생에게 공개 코멘트를 보내고 학부모 답�
   await context.close();
 });
 
-test("기존 저장 데이터는 schema v14 구조로 안전하게 변환된다", async () => {
+test("기존 저장 데이터는 schema v15 구조로 안전하게 변환된다", async () => {
   const { context, page } = await openAs("usr-owner");
   await page.evaluate(() => {
     persistState();
@@ -599,7 +813,7 @@ test("기존 저장 데이터는 schema v14 구조로 안전하게 변환된다"
       state.consultationRecords
     ]
   }));
-  assert.equal(result.schemaVersion, 14);
+  assert.equal(result.schemaVersion, 15);
   assert.equal(result.studentHasStatus, false);
   assert.equal(result.assignment.id, "sca-teacher-math-advanced");
   assert.equal(result.assignment.className, "중등 수학 심화반");

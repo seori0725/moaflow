@@ -42,6 +42,25 @@ const permissions = {
   operator: ["pilot.read", "audit.read", "request.manage"]
 };
 
+const nationalAchievement2025 = {
+  middle3: {
+    label: "중3",
+    subjects: [
+      { name: "국어", levelThree: 64.5, levelOne: 10.8 },
+      { name: "수학", levelThree: 49.6, levelOne: 14.9 },
+      { name: "영어", levelThree: 60.5, levelOne: 6.5 }
+    ]
+  },
+  high2: {
+    label: "고2",
+    subjects: [
+      { name: "국어", levelThree: 53.0, levelOne: 10.4 },
+      { name: "수학", levelThree: 56.2, levelOne: 11.6 },
+      { name: "영어", levelThree: 72.8, levelOne: 6.8 }
+    ]
+  }
+};
+
 const initialState = {
   schemaVersion: 15,
   activeView: "home",
@@ -55,10 +74,21 @@ const initialState = {
   studentConnectionFilter: "all",
   guardianTimelineStudentId: "all",
   guardianTimelineAcademyId: "all",
+  guardianGrowthStudentId: null,
+  guardianGrowthAcademyId: "all",
+  guardianGrowthSubject: "all",
+  guardianNationalGrade: "middle3",
   guardianNotificationReads: [],
   guardianCommentReplies: [],
   academyCommentReplyReads: {},
+  consultationStudentId: null,
+  consultationSearch: "",
+  consultationClassFilter: "all",
+  consultationRecordFilter: "all",
   academyCommentStudentId: null,
+  academyCommentSearch: "",
+  academyCommentClassFilter: "all",
+  academyCommentUnreadFilter: "all",
   operatorMetricWindow: "7",
   operatorUsageWindow: "7",
   operatorPilotFilter: "all",
@@ -77,6 +107,7 @@ const initialState = {
       ownerUserId: "usr-owner",
       businessRegistrationNumber: "123-45-67890",
       phone: "02-123-4567",
+      mainProgram: "중등 수학 심화·내신 대비",
       address: "서울시 마포구 월드컵로 12",
       pilotStatus: "active",
       createdAt: "2026-07-20T09:00:00+09:00"
@@ -87,6 +118,7 @@ const initialState = {
       ownerUserId: "usr-owner-2",
       businessRegistrationNumber: "234-56-78901",
       phone: "02-765-4321",
+      mainProgram: "중등 영어 독해·내신 대비",
       address: "서울시 마포구 성산로 42",
       pilotStatus: "pending",
       createdAt: "2026-07-22T10:00:00+09:00"
@@ -540,6 +572,59 @@ const navigation = {
   ]
 };
 
+const ownerNavigationGroups = [
+  {
+    id: "classes",
+    label: "수업 관리",
+    items: [
+      ["attendance", "출결 관리"],
+      ["learning", "학습 기록"],
+      ["homework", "과제 관리"],
+      ["tests", "테스트 관리"]
+    ]
+  },
+  {
+    id: "students",
+    label: "원생 관리",
+    items: [
+      ["students", "원생 목록"],
+      ["analytics", "학습 분석"],
+      ["consultations", "상담 기록"],
+      ["academy_comments", "학부모 소통"]
+    ]
+  },
+  {
+    id: "academy",
+    label: "학원 설정",
+    items: [
+      ["academy", "학원 정보"],
+      ["audit", "활동 기록"]
+    ]
+  }
+];
+
+const instructorNavigationGroups = [
+  {
+    id: "classes",
+    label: "수업 관리",
+    items: [
+      ["attendance", "출결 관리"],
+      ["learning", "학습 기록"],
+      ["homework", "과제 관리"],
+      ["tests", "테스트 관리"]
+    ]
+  },
+  {
+    id: "students",
+    label: "원생 관리",
+    items: [
+      ["students", "원생 목록"],
+      ["analytics", "학습 분석"],
+      ["academy_comments", "학부모 소통"]
+    ]
+  }
+];
+
 let state = loadState();
 let session = loadSession();
 let selectedAuthRole = "academy_owner";
@@ -566,10 +651,21 @@ function loadState() {
       selectedTestStudentId: null,
       guardianTimelineStudentId: saved.guardianTimelineStudentId || "all",
       guardianTimelineAcademyId: saved.guardianTimelineAcademyId || "all",
+      guardianGrowthStudentId: saved.guardianGrowthStudentId || null,
+      guardianGrowthAcademyId: saved.guardianGrowthAcademyId || "all",
+      guardianGrowthSubject: saved.guardianGrowthSubject || "all",
+      guardianNationalGrade: nationalAchievement2025[saved.guardianNationalGrade] ? saved.guardianNationalGrade : "middle3",
       guardianNotificationReads: saved.guardianNotificationReads || [],
       guardianCommentReplies: saved.guardianCommentReplies || [],
       academyCommentReplyReads: saved.academyCommentReplyReads || {},
+      consultationStudentId: saved.consultationStudentId || null,
+      consultationSearch: saved.consultationSearch || "",
+      consultationClassFilter: saved.consultationClassFilter || "all",
+      consultationRecordFilter: saved.consultationRecordFilter || "all",
       academyCommentStudentId: null,
+      academyCommentSearch: saved.academyCommentSearch || "",
+      academyCommentClassFilter: saved.academyCommentClassFilter || "all",
+      academyCommentUnreadFilter: saved.academyCommentUnreadFilter || "all",
       operatorMetricWindow: saved.operatorMetricWindow || "7",
       operatorUsageWindow: saved.operatorUsageWindow || "7",
       operatorPilotFilter: saved.operatorPilotFilter || "all",
@@ -583,6 +679,10 @@ function loadState() {
         businessRegistrationNumber:
           academy.businessRegistrationNumber ||
           initialState.academies.find((item) => item.id === academy.id)?.businessRegistrationNumber ||
+          "",
+        mainProgram:
+          academy.mainProgram ||
+          initialState.academies.find((item) => item.id === academy.id)?.mainProgram ||
           ""
       })),
       staffClassAssignments: (saved.staffClassAssignments || clone(initialState.staffClassAssignments)).map((item) =>
@@ -886,7 +986,7 @@ function toast(message, type = "default") {
 
 function setAuthRole(role) {
   selectedAuthRole = role;
-  document.querySelectorAll("[data-auth-role]").forEach((button) => {
+  document.querySelectorAll(".role-option[data-auth-role]").forEach((button) => {
     const active = button.dataset.authRole === role;
     button.classList.toggle("active", active);
     button.setAttribute("aria-checked", String(active));
@@ -982,6 +1082,49 @@ function render() {
   renderView();
 }
 
+function navigationItemMarkup(id, label, nested = false) {
+  const unread = id === "academy_comments"
+    ? academyUnreadGuardianReplies().length
+    : id === "comments"
+      ? guardianUnreadCommentEvents().length
+      : 0;
+  return `
+    <button class="nav-item ${nested ? "nested" : ""} ${state.activeView === id ? "active" : ""}" data-view="${id}">
+      <span>${label}</span>${unread ? `<strong class="nav-unread-count">${unread}</strong>` : ""}
+    </button>`;
+}
+
+function renderGroupedNavigation(groups, trailingItems = []) {
+  return `
+    ${navigationItemMarkup("home", "오늘 운영")}
+    ${groups
+      .map((group) => {
+        const expanded = group.items.some(([id]) => id === state.activeView);
+        return `
+          <section class="nav-group ${expanded ? "expanded" : ""}" data-nav-group-container="${group.id}">
+            <button class="nav-group-toggle" type="button" data-nav-group="${group.id}" aria-expanded="${expanded}">
+              <span>${group.label}</span><i aria-hidden="true">⌄</i>
+            </button>
+            <div class="nav-submenu ${expanded ? "" : "collapsed"}">
+              ${group.items.map(([id, label]) => navigationItemMarkup(id, label, true)).join("")}
+            </div>
+          </section>`;
+      })
+      .join("")}
+    ${trailingItems.map(([id, label]) => navigationItemMarkup(id, label)).join("")}
+  `;
+}
+
+function toggleNavigationGroup(groupId) {
+  document.querySelectorAll("[data-nav-group-container]").forEach((group) => {
+    const isTarget = group.dataset.navGroupContainer === groupId;
+    const shouldExpand = isTarget && !group.classList.contains("expanded");
+    group.classList.toggle("expanded", shouldExpand);
+    group.querySelector("[data-nav-group]").setAttribute("aria-expanded", String(shouldExpand));
+    group.querySelector(".nav-submenu").classList.toggle("collapsed", !shouldExpand);
+  });
+}
+
 function renderShell() {
   const user = currentUser();
   const role = user.role;
@@ -1001,6 +1144,7 @@ function renderShell() {
     contextName.textContent = academy.name;
     document.querySelector("#context-detail").textContent = "";
   } else if (role === "guardian") {
+    document.querySelector("#context-label").textContent = "";
     const linked = new Set(
       state.guardianLinks
         .filter((link) => link.guardianUserId === user.id && link.status === "verified")
@@ -1015,17 +1159,12 @@ function renderShell() {
 
   const allowedViews = navigation[role];
   if (!allowedViews.some(([id]) => id === state.activeView)) state.activeView = allowedViews[0][0];
-  document.querySelector("#main-nav").innerHTML = allowedViews
-    .map(
-      ([id, label]) => {
-        const unread = id === "academy_comments" ? academyUnreadGuardianReplies().length : 0;
-        return `
-        <button class="nav-item ${state.activeView === id ? "active" : ""}" data-view="${id}">
-          <span>${label}</span>${unread ? `<strong class="nav-unread-count">${unread}</strong>` : ""}
-        </button>`;
-      }
-    )
-    .join("");
+  document.querySelector("#main-nav").innerHTML =
+    role === "academy_owner"
+      ? renderGroupedNavigation(ownerNavigationGroups)
+      : role === "academy_instructor"
+        ? renderGroupedNavigation(instructorNavigationGroups, [["permissions", "내 권한"]])
+      : allowedViews.map(([id, label]) => navigationItemMarkup(id, label)).join("");
 }
 
 function setPage(_eyebrow, title) {
@@ -1085,17 +1224,9 @@ function renderHome(role) {
   const attendanceRate = Math.round((attendance.length / Math.max(activeEnrollments.length, 1)) * 100);
 
   return `
-    <section class="hero-panel">
-      <div>
-        <p class="eyebrow eyebrow-accent">TODAY · CORE FLOW</p>
-        <h2>${escapeHtml(academy.name)}의 오늘 업무를 이어가세요</h2>
-      </div>
-      <div class="hero-progress"><strong>${attendanceRate}%</strong><span>오늘 출결 처리율</span></div>
-    </section>
-
     <section class="grid four horizontal-metrics">
       ${metricCard("오늘 수업", `${classNames.length}개 반`, "", false, true)}
-      ${metricCard("출결 처리", `${attendance.length}/${activeEnrollments.length}`, "", true)}
+      ${metricCard("출결 처리율", `${attendanceRate}%`, `${attendance.length}/${activeEnrollments.length}명`, true)}
       ${metricCard("학습기록", `${learning.length}/${classNames.length}`, "", false)}
       ${metricCard("보호자 연결", `${connected}/${academyEnrollments.length}`, "")}
     </section>
@@ -1502,7 +1633,7 @@ function renderTests() {
     : classAssessments.length;
 
   return `
-    <section class="grid four horizontal-metrics">
+    <section class="grid four horizontal-metrics test-metrics">
       ${metricCard("사용 주기", ({ none: "미사용", weekly: "주간", monthly: "월간", weekly_monthly: "주간+월간", irregular: "비정기" })[setting?.frequency] || "미설정", "", false, true)}
       ${metricCard("1차 반 평균", average === null ? "미집계" : `${average}점`, "", false, true)}
       ${metricCard("결시", `${absentCount}명`, "", absentCount > 0)}
@@ -1734,16 +1865,18 @@ function commentRepliesFor(consultationId) {
 function renderCommentReplies(consultation, context) {
   const replies = commentRepliesFor(consultation.id);
   const isGuardian = context === "guardian";
+  const guardianReadIds = new Set(state.guardianNotificationReads);
   return `
     <section class="comment-thread">
       <div class="comment-thread-list">
         ${replies.map((reply) => {
           const author = userById(reply.authorUserId);
+          const isUnread = isGuardian && reply.authorRole === "academy" && !guardianReadIds.has(`reply-${reply.id}`);
           const authorLabel = reply.authorRole === "guardian"
             ? `학부모 ${author?.name || ""}`.trim()
             : userRoleName(author);
           return `
-            <div class="comment-reply ${reply.authorRole === "guardian" ? "guardian-reply" : "academy-reply"}">
+            <div class="comment-reply ${reply.authorRole === "guardian" ? "guardian-reply" : "academy-reply"} ${isUnread ? "unread" : ""}">
               <div><strong>${escapeHtml(authorLabel)}</strong><time>${formatDateTime(reply.createdAt)}</time></div>
               <p>${escapeHtml(reply.body)}</p>
             </div>`;
@@ -1760,6 +1893,44 @@ function renderCommentReplies(consultation, context) {
     </section>`;
 }
 
+function communicationDirectoryMatches(entry, search, classFilter, statusFilter) {
+  const normalizedSearch = String(search || "").trim().toLocaleLowerCase("ko-KR");
+  return (
+    (!normalizedSearch || entry.searchText.includes(normalizedSearch)) &&
+    (classFilter === "all" || entry.className === classFilter) &&
+    (statusFilter === "all" || entry.status === statusFilter)
+  );
+}
+
+function applyCommunicationDirectoryFilters(kind) {
+  const isConsultation = kind === "consultation";
+  const idPrefix = isConsultation ? "consultation" : "academy-comment";
+  const statePrefix = isConsultation ? "consultation" : "academyComment";
+  const statusKey = isConsultation ? "RecordFilter" : "UnreadFilter";
+  const search = document.querySelector(`#${idPrefix}-directory-search`)?.value || "";
+  const classFilter = document.querySelector(`#${idPrefix}-directory-class`)?.value || "all";
+  const statusFilter = document.querySelector(`#${idPrefix}-directory-status`)?.value || "all";
+  const normalizedSearch = search.trim().toLocaleLowerCase("ko-KR");
+  let visibleCount = 0;
+
+  document.querySelectorAll(`[data-directory-kind="${kind}"]`).forEach((row) => {
+    const visible =
+      (!normalizedSearch || row.dataset.directorySearch.includes(normalizedSearch)) &&
+      (classFilter === "all" || row.dataset.directoryClass === classFilter) &&
+      (statusFilter === "all" || row.dataset.directoryStatus === statusFilter);
+    row.classList.toggle("hidden", !visible);
+    if (visible) visibleCount += 1;
+  });
+
+  state[`${statePrefix}Search`] = search;
+  state[`${statePrefix}ClassFilter`] = classFilter;
+  state[`${statePrefix}${statusKey}`] = statusFilter;
+  const count = document.querySelector(`#${idPrefix}-directory-count`);
+  if (count) count.textContent = String(visibleCount);
+  document.querySelector(`#${idPrefix}-directory-empty`)?.classList.toggle("hidden", visibleCount > 0);
+  persistState();
+}
+
 function renderConsultations() {
   setPage("학원 운영", "상담 기록");
   if (!hasPermission("consultation.manage")) {
@@ -1770,16 +1941,93 @@ function renderConsultations() {
   const selectedId = enrollments.some((item) => item.studentId === state.consultationStudentId)
     ? state.consultationStudentId
     : enrollments[0]?.studentId;
+  const selectedEnrollment = enrollments.find((item) => item.studentId === selectedId);
   const records = state.consultationRecords
     .filter((item) => item.academyId === academy.id && (!selectedId || item.studentId === selectedId))
     .sort((a, b) => b.consultationDate.localeCompare(a.consultationDate));
+  const classNames = [...new Set(enrollments.map((item) => item.className))].sort((a, b) => a.localeCompare(b, "ko"));
+  const consultationSearch = state.consultationSearch || "";
+  const consultationClassFilter = classNames.includes(state.consultationClassFilter)
+    ? state.consultationClassFilter
+    : "all";
+  const consultationRecordFilter = ["all", "shared", "internal", "none"].includes(state.consultationRecordFilter)
+    ? state.consultationRecordFilter
+    : "all";
+  const directoryEntries = enrollments.map((enrollment) => {
+    const student = studentById(enrollment.studentId);
+    const studentRecords = state.consultationRecords
+      .filter((item) => item.academyId === academy.id && item.studentId === enrollment.studentId)
+      .sort((a, b) => b.consultationDate.localeCompare(a.consultationDate));
+    const latest = studentRecords[0];
+    return {
+      studentId: enrollment.studentId,
+      studentName: student?.name || "원생",
+      className: enrollment.className,
+      latest,
+      recordCount: studentRecords.length,
+      status: !latest ? "none" : studentRecords.some((item) => item.guardianSummary) ? "shared" : "internal",
+      searchText: `${student?.name || ""} ${enrollment.className}`.toLocaleLowerCase("ko-KR")
+    };
+  });
+  const visibleDirectoryEntries = directoryEntries.filter((entry) =>
+    communicationDirectoryMatches(
+      entry,
+      consultationSearch,
+      consultationClassFilter,
+      consultationRecordFilter
+    )
+  );
   return `
+    <article class="panel management-directory-panel">
+      <div class="panel-head directory-panel-head">
+        <div><h2>전체 원생 상담 현황</h2><p>원생을 선택하면 아래 기록 작성과 상담 이력이 함께 바뀝니다.</p></div>
+        <strong><span id="consultation-directory-count">${visibleDirectoryEntries.length}</span>/${directoryEntries.length}명</strong>
+      </div>
+      <div class="directory-controls">
+        <input id="consultation-directory-search" type="search" value="${escapeHtml(consultationSearch)}" placeholder="원생명·반 검색" aria-label="상담 원생 검색" />
+        <select id="consultation-directory-class" aria-label="상담 반 필터">
+          <option value="all">전체 반</option>
+          ${classNames.map((className) => `<option value="${escapeHtml(className)}" ${consultationClassFilter === className ? "selected" : ""}>${escapeHtml(className)}</option>`).join("")}
+        </select>
+        <select id="consultation-directory-status" aria-label="상담 기록 필터">
+          <option value="all" ${consultationRecordFilter === "all" ? "selected" : ""}>전체 기록</option>
+          <option value="shared" ${consultationRecordFilter === "shared" ? "selected" : ""}>보호자 공유 있음</option>
+          <option value="internal" ${consultationRecordFilter === "internal" ? "selected" : ""}>내부 기록만</option>
+          <option value="none" ${consultationRecordFilter === "none" ? "selected" : ""}>기록 없음</option>
+        </select>
+      </div>
+      <div class="table-wrap directory-table-wrap">
+        <table class="data-table management-directory-table consultation-directory-table">
+          <thead><tr><th>원생</th><th>반</th><th>최근 상담일</th><th>상담 유형</th><th>다음 후속조치</th><th>공유</th><th>관리</th></tr></thead>
+          <tbody>
+            ${directoryEntries.map((entry) => {
+              const visible = communicationDirectoryMatches(
+                entry,
+                consultationSearch,
+                consultationClassFilter,
+                consultationRecordFilter
+              );
+              return `<tr class="${entry.studentId === selectedId ? "active" : ""} ${visible ? "" : "hidden"}" data-directory-kind="consultation" data-directory-search="${escapeHtml(entry.searchText)}" data-directory-class="${escapeHtml(entry.className)}" data-directory-status="${entry.status}">
+                <td><strong>${escapeHtml(entry.studentName)}</strong></td>
+                <td>${escapeHtml(entry.className)}</td>
+                <td>${entry.latest ? escapeHtml(entry.latest.consultationDate) : "—"}</td>
+                <td>${entry.latest ? consultationTypeLabel(entry.latest.type) : "—"}</td>
+                <td class="directory-preview">${entry.latest ? escapeHtml(entry.latest.nextAction) : "상담 기록 없음"}</td>
+                <td><span class="badge ${entry.status === "shared" ? "green" : "gray"}">${entry.status === "shared" ? "공유 있음" : entry.status === "internal" ? "내부 기록" : "미기록"}</span></td>
+                <td><button class="button ${entry.studentId === selectedId ? "primary" : "tertiary"} compact" type="button" data-action="select-consultation-student" data-student-id="${entry.studentId}">${entry.studentId === selectedId ? "선택됨" : "상담 관리"}</button></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div id="consultation-directory-empty" class="empty-state ${visibleDirectoryEntries.length ? "hidden" : ""}">조건에 맞는 원생이 없습니다.</div>
+    </article>
     <section class="grid two consultation-layout">
       <article class="panel">
         <div class="panel-head"><div><h2>상담 내용 기록</h2></div></div>
-        <form id="consultation-form">
+        ${selectedEnrollment ? `<form id="consultation-form">
           <div class="form-grid">
-            <div><label for="consultation-student">원생</label><select id="consultation-student" name="student-id">${enrollments.map((item) => `<option value="${item.studentId}" ${item.studentId === selectedId ? "selected" : ""}>${escapeHtml(studentById(item.studentId)?.name)}</option>`).join("")}</select></div>
+            <div><label>선택 원생</label><div class="selected-student-context"><strong>${escapeHtml(studentById(selectedId)?.name || "원생")}</strong><span>${escapeHtml(selectedEnrollment.className)}</span></div><input id="consultation-student" name="student-id" type="hidden" value="${selectedId}" /></div>
             <div><label for="consultation-date">상담일</label><input id="consultation-date" name="consultation-date" type="date" required value="${koreaDate()}" /></div>
             <div class="full"><label for="consultation-type">상담 유형</label><select id="consultation-type" name="type"><option value="guardian">학부모 상담</option><option value="student">학생 상담</option><option value="internal">내부 협의</option></select></div>
             <div class="full"><label for="consultation-internal">내부 메모</label><textarea id="consultation-internal" name="internal-memo" required placeholder="학습 흐름, 관찰 내용, 상담 맥락을 기록합니다."></textarea></div>
@@ -1787,12 +2035,12 @@ function renderConsultations() {
             <div class="full"><label for="consultation-summary">보호자 공유 요약 <span class="optional-label">선택</span></label><textarea id="consultation-summary" name="guardian-summary" placeholder="내부 메모와 구분해 공개 가능한 내용만 작성합니다."></textarea></div>
           </div>
           <div class="form-actions"><button class="button primary" type="submit">상담 기록 저장</button></div>
-        </form>
+        </form>` : '<div class="empty-state">관리할 원생이 없습니다.</div>'}
       </article>
       <article class="panel">
-        <div class="panel-head"><div><h2>상담 이력</h2></div></div>
-        <div class="consultation-list">
-          ${records.map((item) => `<div class="consultation-item">
+        <div class="panel-head"><div><h2>상담 이력</h2></div>${recordSearchControl("consultation-records", "상담 내용 검색")}</div>
+        <div class="consultation-list record-scroll" data-record-list="consultation-records">
+          ${records.map((item) => `<div class="consultation-item" data-record-date="${escapeHtml(item.consultationDate)}" data-record-search="${escapeHtml(recordSearchText(item.consultationDate, consultationTypeLabel(item.type), item.nextAction, item.internalMemo, item.guardianSummary))}">
             <div><span>${item.consultationDate}</span><span class="badge ${item.guardianSummary ? "green" : "gray"}">${item.guardianSummary ? "공유 요약 있음" : "내부 기록"}</span></div>
             <strong>${escapeHtml(item.nextAction)}</strong>
             <p>${escapeHtml(item.internalMemo)}</p>
@@ -1800,6 +2048,7 @@ function renderConsultations() {
             ${item.guardianSummary ? renderCommentReplies(item, "academy") : ""}
           </div>`).join("") || '<div class="empty-state">상담 기록이 없습니다.</div>'}
         </div>
+        <div class="empty-state hidden" data-record-empty="consultation-records">검색 결과가 없습니다.</div>
       </article>
     </section>
   `;
@@ -1846,6 +2095,7 @@ function renderAcademyComments() {
   const selectedId = enrollments.some((item) => item.studentId === state.academyCommentStudentId)
     ? state.academyCommentStudentId
     : enrollments[0]?.studentId;
+  const selectedEnrollment = enrollments.find((item) => item.studentId === selectedId);
   const records = state.consultationRecords
     .filter(
       (item) =>
@@ -1854,26 +2104,113 @@ function renderAcademyComments() {
         item.guardianSummary
     )
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const unreadCount = academyUnreadGuardianReplies().length;
+  const allUnread = academyUnreadGuardianReplies();
+  const classNames = [...new Set(enrollments.map((item) => item.className))].sort((a, b) => a.localeCompare(b, "ko"));
+  const academyCommentSearch = state.academyCommentSearch || "";
+  const academyCommentClassFilter = classNames.includes(state.academyCommentClassFilter)
+    ? state.academyCommentClassFilter
+    : "all";
+  const academyCommentUnreadFilter = ["all", "unread", "clear", "none"].includes(state.academyCommentUnreadFilter)
+    ? state.academyCommentUnreadFilter
+    : "all";
+  const directoryEntries = enrollments
+    .map((enrollment) => {
+      const student = studentById(enrollment.studentId);
+      const studentRecords = state.consultationRecords
+        .filter(
+          (item) =>
+            item.academyId === currentAcademy().id &&
+            item.studentId === enrollment.studentId &&
+            item.guardianSummary
+        )
+        .sort((a, b) => new Date(b.createdAt || `${b.consultationDate}T12:00:00+09:00`) - new Date(a.createdAt || `${a.consultationDate}T12:00:00+09:00`));
+      const recordIds = new Set(studentRecords.map((item) => item.id));
+      const replies = state.guardianCommentReplies
+        .filter((item) => recordIds.has(item.consultationId))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const latestRecord = studentRecords[0];
+      const latestReply = replies[0];
+      const latestRecordAt = latestRecord?.createdAt || (latestRecord ? `${latestRecord.consultationDate}T12:00:00+09:00` : null);
+      const latestActivity = [
+        latestRecordAt ? { createdAt: latestRecordAt, body: latestRecord.guardianSummary } : null,
+        latestReply ? { createdAt: latestReply.createdAt, body: latestReply.body } : null
+      ].filter(Boolean).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+      const unread = allUnread.filter((item) => recordIds.has(item.consultationId));
+      return {
+        studentId: enrollment.studentId,
+        studentName: student?.name || "원생",
+        className: enrollment.className,
+        preview: latestActivity?.body || "대화 없음",
+        lastActivityAt: latestActivity?.createdAt || null,
+        unreadCount: unread.length,
+        status: unread.length ? "unread" : studentRecords.length ? "clear" : "none",
+        searchText: `${student?.name || ""} ${enrollment.className}`.toLocaleLowerCase("ko-KR")
+      };
+    })
+    .sort((a, b) => b.unreadCount - a.unreadCount || new Date(b.lastActivityAt || 0) - new Date(a.lastActivityAt || 0) || a.studentName.localeCompare(b.studentName, "ko"));
+  const visibleDirectoryEntries = directoryEntries.filter((entry) =>
+    communicationDirectoryMatches(
+      entry,
+      academyCommentSearch,
+      academyCommentClassFilter,
+      academyCommentUnreadFilter
+    )
+  );
 
   return `
-    <section class="hero-panel academy-comment-hero">
-      <div>
-        <p class="eyebrow eyebrow-accent">GUARDIAN COMMUNICATION</p>
-        <h2>공개 코멘트와 학부모 답변을 한곳에서 관리하세요</h2>
+    <article class="panel management-directory-panel academy-comment-directory-panel">
+      <div class="panel-head directory-panel-head">
+        <div><h2>전체 원생 대화 목록</h2><p>미확인 답변이 있는 원생을 먼저 표시합니다.</p></div>
+        <strong><span id="academy-comment-directory-count">${visibleDirectoryEntries.length}</span>/${directoryEntries.length}명</strong>
       </div>
-      <div class="hero-progress"><strong>${unreadCount}</strong><span>미확인 답변</span></div>
-    </section>
+      <div class="directory-controls">
+        <input id="academy-comment-directory-search" type="search" value="${escapeHtml(academyCommentSearch)}" placeholder="원생명·반 검색" aria-label="학부모 소통 원생 검색" />
+        <select id="academy-comment-directory-class" aria-label="학부모 소통 반 필터">
+          <option value="all">전체 반</option>
+          ${classNames.map((className) => `<option value="${escapeHtml(className)}" ${academyCommentClassFilter === className ? "selected" : ""}>${escapeHtml(className)}</option>`).join("")}
+        </select>
+        <select id="academy-comment-directory-status" aria-label="학부모 소통 상태 필터">
+          <option value="all" ${academyCommentUnreadFilter === "all" ? "selected" : ""}>전체 상태</option>
+          <option value="unread" ${academyCommentUnreadFilter === "unread" ? "selected" : ""}>미확인 답변</option>
+          <option value="clear" ${academyCommentUnreadFilter === "clear" ? "selected" : ""}>확인 완료</option>
+          <option value="none" ${academyCommentUnreadFilter === "none" ? "selected" : ""}>대화 없음</option>
+        </select>
+      </div>
+      <div class="table-wrap directory-table-wrap">
+        <table class="data-table management-directory-table academy-comment-directory-table">
+          <thead><tr><th>원생</th><th>반</th><th>최근 내용</th><th>최근 대화</th><th>미확인</th><th>상태</th><th>관리</th></tr></thead>
+          <tbody>
+            ${directoryEntries.map((entry) => {
+              const visible = communicationDirectoryMatches(
+                entry,
+                academyCommentSearch,
+                academyCommentClassFilter,
+                academyCommentUnreadFilter
+              );
+              return `<tr class="${entry.studentId === selectedId ? "active" : ""} ${visible ? "" : "hidden"}" data-directory-kind="academy-comment" data-directory-search="${escapeHtml(entry.searchText)}" data-directory-class="${escapeHtml(entry.className)}" data-directory-status="${entry.status}">
+                <td><strong>${escapeHtml(entry.studentName)}</strong></td>
+                <td>${escapeHtml(entry.className)}</td>
+                <td class="directory-preview">${escapeHtml(entry.preview)}</td>
+                <td>${entry.lastActivityAt ? formatDateTime(entry.lastActivityAt) : "—"}</td>
+                <td>${entry.unreadCount ? `<span class="badge orange">${entry.unreadCount}건</span>` : "—"}</td>
+                <td><span class="badge ${entry.status === "unread" ? "orange" : entry.status === "clear" ? "green" : "gray"}">${entry.status === "unread" ? "답변 확인 필요" : entry.status === "clear" ? "확인 완료" : "대화 없음"}</span></td>
+                <td><button class="button ${entry.studentId === selectedId ? "primary" : "tertiary"} compact" type="button" data-action="select-academy-comment-student" data-student-id="${entry.studentId}">${entry.studentId === selectedId ? "선택됨" : "대화 열기"}</button></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div id="academy-comment-directory-empty" class="empty-state ${visibleDirectoryEntries.length ? "hidden" : ""}">조건에 맞는 원생이 없습니다.</div>
+    </article>
     <section class="grid two academy-comment-layout">
       <article class="panel">
         <div class="panel-head"><div><h2>새 코멘트 작성</h2><p>학부모에게 공개되는 내용만 입력합니다.</p></div></div>
-        <form id="academy-comment-form">
+        ${selectedEnrollment ? `<form id="academy-comment-form">
           <div class="form-grid">
             <div class="full">
-              <label for="academy-comment-student">원생</label>
-              <select id="academy-comment-student" name="student-id">
-                ${enrollments.map((item) => `<option value="${item.studentId}" ${item.studentId === selectedId ? "selected" : ""}>${escapeHtml(studentById(item.studentId)?.name || "학생")} · ${escapeHtml(item.className)}</option>`).join("")}
-              </select>
+              <label>선택 원생</label>
+              <div class="selected-student-context"><strong>${escapeHtml(studentById(selectedId)?.name || "원생")}</strong><span>${escapeHtml(selectedEnrollment.className)}</span></div>
+              <input id="academy-comment-student" name="student-id" type="hidden" value="${selectedId}" />
             </div>
             <div class="full">
               <label for="academy-comment-body">보호자 공개 코멘트</label>
@@ -1881,12 +2218,11 @@ function renderAcademyComments() {
             </div>
           </div>
           <div class="form-actions"><button class="button primary" type="submit">코멘트 보내기</button></div>
-        </form>
+        </form>` : '<div class="empty-state">소통할 재원 원생이 없습니다.</div>'}
       </article>
       <article class="panel">
         <div class="panel-head">
-          <div><h2>코멘트 대화</h2><p>담당 학생의 공개 내용과 답변만 표시됩니다.</p></div>
-          ${enrollments.length ? `<select id="academy-comment-filter" aria-label="코멘트 원생 선택">${enrollments.map((item) => `<option value="${item.studentId}" ${item.studentId === selectedId ? "selected" : ""}>${escapeHtml(studentById(item.studentId)?.name || "학생")}</option>`).join("")}</select>` : ""}
+          <div><h2>${selectedId ? `${escapeHtml(studentById(selectedId)?.name || "원생")} 코멘트 대화` : "코멘트 대화"}</h2><p>선택한 원생의 공개 내용과 답변만 표시됩니다.</p></div>
         </div>
         <div class="academy-comment-list">
           ${records.map((item) => {
@@ -2080,7 +2416,7 @@ function guardianFilters(events) {
   };
 }
 
-function renderGuardianFilters(events) {
+function renderGuardianFilters(events, actionMarkup = "") {
   const { studentIds, academyIds } = guardianScope();
   const filters = guardianFilters(events);
   return `
@@ -2099,6 +2435,7 @@ function renderGuardianFilters(events) {
           ${academyIds.map((id) => `<option value="${id}" ${filters.academyId === id ? "selected" : ""}>${escapeHtml(academyById(id)?.name || "학원")}</option>`).join("")}
         </select>
       </label>
+      ${actionMarkup ? `<span class="guardian-filter-divider" aria-hidden="true"></span>${actionMarkup}` : ""}
     </div>`;
 }
 
@@ -2113,17 +2450,11 @@ function renderGuardianHome() {
   scope.academyIds.forEach((academyId) => trackUsageOnce("guardian.home_viewed", academyId));
 
   return `
-    <section class="hero-panel guardian-hero">
-      <div>
-        <p class="eyebrow eyebrow-accent">ALL ACADEMIES · ONE TIMELINE</p>
-        <h2>${scope.studentIds.length ? "여러 학원의 자녀 소식을 시간순으로 확인하세요" : "초대 코드를 연결해주세요"}</h2>
-      </div>
-      <div class="hero-progress"><strong>${unread}</strong><span>읽지 않은 알림</span></div>
-    </section>
     ${scope.studentIds.length ? `
       <section class="guardian-summary-strip">
         <span class="badge green">자녀 ${scope.studentIds.length}명</span>
         <span class="badge gray">연결 학원 ${scope.academyIds.length}곳</span>
+        <span class="badge orange guardian-unread-badge">읽지 않은 알림 ${unread}</span>
         <button class="button secondary compact" data-action="open-guardian-connect-modal">자녀·학원 추가 연결</button>
       </section>
       <section class="child-timeline-grid guardian-child-overview">
@@ -2144,7 +2475,7 @@ function renderGuardianHome() {
       </section>
       <article class="panel guardian-timeline-panel">
         <div class="guardian-timeline-filters">${renderGuardianFilters(allEvents)}</div>
-        <div class="timeline-list">
+        <div class="timeline-list guardian-timeline-scroll">
           ${filtered.length ? filtered.map((item) => `
             <div class="timeline-event guardian-event">
               <div class="guardian-event-source">
@@ -2200,41 +2531,289 @@ function guardianChildSnapshot(studentId) {
   return { childLinks, attendanceRate, homeworkRate, scores };
 }
 
+function studentSchoolGrade(studentId) {
+  const birthYear = Number(studentById(studentId)?.birthDate?.slice(0, 4));
+  const currentYear = Number(koreaDate().slice(0, 4));
+  const grade = currentYear - birthYear - 6;
+  if (grade >= 1 && grade <= 6) return `초등 ${grade}학년`;
+  if (grade >= 7 && grade <= 9) return `중등 ${grade - 6}학년`;
+  if (grade >= 10 && grade <= 12) return `고등 ${grade - 9}학년`;
+  return "학년 정보 없음";
+}
+
+function guardianMoaflowBenchmark(studentId, latest) {
+  const grade = studentSchoolGrade(studentId);
+  const subject = latest?.subject || "과목 정보 없음";
+  const latestByStudent = new Map();
+  state.assessments
+    .filter((assessment) => assessment.subject === latest?.subject)
+    .sort((a, b) => a.testDate.localeCompare(b.testDate))
+    .forEach((assessment) => {
+      (assessment.attempts || [])
+        .filter((attempt) => attempt.status === "taken" && Number.isFinite(attempt.score))
+        .sort((a, b) => a.attemptNo - b.attemptNo)
+        .forEach((attempt) => {
+          if (studentSchoolGrade(attempt.studentId) !== grade) return;
+          latestByStudent.set(attempt.studentId, Math.round((attempt.score / assessment.maxScore) * 100));
+        });
+    });
+  const scores = [...latestByStudent.values()].sort((a, b) => b - a);
+  const sampleMinimum = 30;
+  const eligible = Boolean(latest) && scores.length >= sampleMinimum;
+  const rank = eligible ? scores.findIndex((score) => score <= latest.percent) + 1 : null;
+  return {
+    grade,
+    subject,
+    cohortSize: scores.length,
+    sampleMinimum,
+    average: eligible ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : null,
+    topPercent: eligible ? Math.max(1, Math.ceil((rank / scores.length) * 100)) : null
+  };
+}
+
+function renderGuardianGrowthChart(snapshot, studentName) {
+  const linkedAcademyIds = [...new Set(snapshot.childLinks.map((item) => item.academyId))]
+    .sort((a, b) => (academyById(a)?.name || "").localeCompare(academyById(b)?.name || "", "ko"));
+  const selectedAcademyId = linkedAcademyIds.includes(state.guardianGrowthAcademyId)
+    ? state.guardianGrowthAcademyId
+    : "all";
+  const academyScores = selectedAcademyId === "all"
+    ? snapshot.scores
+    : snapshot.scores.filter((item) => item.academyId === selectedAcademyId);
+  const subjects = [...new Set(academyScores.map((item) => item.subject))];
+  const selectedSubject = selectedAcademyId === "all"
+    ? "all"
+    : subjects.includes(state.guardianGrowthSubject)
+      ? state.guardianGrowthSubject
+      : subjects[0] || "all";
+  const scores = selectedSubject === "all"
+    ? academyScores
+    : academyScores.filter((item) => item.subject === selectedSubject);
+  const allSeriesKeys = [...new Set(snapshot.scores.map((item) => `${item.academyId}::${item.subject}`))];
+  const plotWidth = 800;
+  const plotTop = 18;
+  const plotBottom = 160;
+  const gridLeft = 58;
+  const gridRight = plotWidth - 26;
+  const plotLeft = 104;
+  const plotRight = 62;
+  const xRange = plotWidth - plotLeft - plotRight;
+  const scoreValues = scores.map((item) => item.percent);
+  const minimumScore = scoreValues.length ? Math.min(...scoreValues) : 0;
+  const maximumScore = scoreValues.length ? Math.max(...scoreValues) : 100;
+  let axisMinimum = Math.max(0, Math.floor((minimumScore - 5) / 10) * 10);
+  let axisMaximum = Math.min(100, Math.ceil((maximumScore + 5) / 10) * 10);
+  if (axisMaximum - axisMinimum < 20) {
+    if (axisMinimum >= 10) axisMinimum -= 10;
+    else axisMaximum = Math.min(100, axisMaximum + 10);
+  }
+  const axisStep = axisMaximum - axisMinimum > 50 ? 20 : 10;
+  const axisTicks = [];
+  for (let value = axisMinimum; value <= axisMaximum; value += axisStep) axisTicks.push(value);
+  const chartPoints = scores.map((item, index) => ({
+    ...item,
+    x: scores.length === 1 ? plotLeft + xRange / 2 : plotLeft + (index / (scores.length - 1)) * xRange,
+    y: plotTop + ((axisMaximum - item.percent) / Math.max(axisMaximum - axisMinimum, 1)) * (plotBottom - plotTop),
+    seriesKey: `${item.academyId}::${item.subject}`,
+    seriesIndex: Math.max(allSeriesKeys.indexOf(`${item.academyId}::${item.subject}`), 0)
+  }));
+  const chartSeries = [...new Set(chartPoints.map((item) => item.seriesKey))].map((seriesKey) => ({
+    seriesKey,
+    points: chartPoints.filter((item) => item.seriesKey === seriesKey)
+  }));
+  const latestSeriesPointIds = new Set(chartSeries.map((series) => series.points.at(-1)?.id).filter(Boolean));
+  const pointChanges = new Map();
+  chartSeries.forEach((series) => series.points.forEach((item, index) => {
+    if (index > 0) pointChanges.set(item.id, item.percent - series.points[index - 1].percent);
+  }));
+  const description = selectedAcademyId === "all"
+    ? "같은 학원·같은 과목 기록끼리 각각 선으로 연결합니다."
+    : `${academyById(selectedAcademyId)?.name || "학원"}의 ${selectedSubject === "all" ? "평가" : selectedSubject} 기록만 연결합니다.`;
+
+  return `
+    <section class="growth-chart-section">
+      <div class="growth-chart-head">
+        <div><h3>학습 성장 그래프</h3><p>${escapeHtml(description)}</p></div>
+        ${selectedAcademyId !== "all" && selectedSubject !== "all" ? `<span class="badge green">${escapeHtml(selectedSubject)}</span>` : ""}
+      </div>
+      <div class="growth-chart-tabs" role="tablist" aria-label="성장 그래프 학원 선택">
+        <button type="button" role="tab" aria-selected="${selectedAcademyId === "all"}" class="${selectedAcademyId === "all" ? "active" : ""}" data-action="select-growth-academy" data-academy-id="all">전체</button>
+        ${linkedAcademyIds.map((academyId) => `
+          <button type="button" role="tab" aria-selected="${selectedAcademyId === academyId}" class="${selectedAcademyId === academyId ? "active" : ""}" data-action="select-growth-academy" data-academy-id="${academyId}">${escapeHtml(academyById(academyId)?.name || "학원")}</button>
+        `).join("")}
+      </div>
+      ${selectedAcademyId !== "all" && subjects.length > 1 ? `
+        <div class="growth-subject-filters" aria-label="성장 그래프 과목 선택">
+          ${subjects.map((subject) => `<button type="button" class="${selectedSubject === subject ? "active" : ""}" data-action="select-growth-subject" data-subject="${escapeHtml(subject)}">${escapeHtml(subject)}</button>`).join("")}
+        </div>
+      ` : ""}
+      <div class="growth-report-entry">
+        <strong>${selectedAcademyId === "all" ? "전체 학원" : escapeHtml(academyById(selectedAcademyId)?.name || "학원")}</strong>
+        <button type="button" class="button secondary compact" data-action="open-growth-report" data-academy-id="${selectedAcademyId}" data-subject="${escapeHtml(selectedSubject)}">상세 확인</button>
+      </div>
+      ${selectedAcademyId === "all" && allSeriesKeys.length > 1 ? `
+        <div class="growth-chart-legend">
+          ${allSeriesKeys.map((seriesKey, index) => {
+            const [academyId, subject] = seriesKey.split("::");
+            return `<span><i class="series-${index % 6}"></i>${escapeHtml(academyById(academyId)?.name || "학원")} · ${escapeHtml(subject)}</span>`;
+          }).join("")}
+        </div>
+      ` : ""}
+      <div class="growth-chart ${selectedAcademyId === "all" ? "multi-line-chart" : "line-chart"}" aria-label="${escapeHtml(studentName || "자녀")} 평가 성장 그래프">
+        ${chartPoints.length ? `
+          <svg viewBox="0 0 ${plotWidth} 210" role="img" aria-label="${selectedAcademyId === "all" ? "학원과 과목별 평가 다중 꺾은선그래프" : "선택 학원 평가 꺾은선그래프"}">
+            ${axisTicks.map((value) => {
+              const y = plotTop + ((axisMaximum - value) / Math.max(axisMaximum - axisMinimum, 1)) * (plotBottom - plotTop);
+              return `<line class="growth-grid-line" x1="${gridLeft}" y1="${y}" x2="${gridRight}" y2="${y}"></line><text class="growth-axis-value" x="${gridLeft - 12}" y="${y + 4}">${value}</text>`;
+            }).join("")}
+            ${chartSeries.map((series) => series.points.length > 1
+              ? `<polyline class="growth-chart-line series-${series.points[0].seriesIndex % 6}" points="${series.points.map((item) => `${item.x},${item.y}`).join(" ")}"></polyline>`
+              : "").join("")}
+            ${chartPoints.map((item) => `
+              <g class="growth-chart-point ${latestSeriesPointIds.has(item.id) ? "latest" : ""} series-${item.seriesIndex % 6}">
+                <title>${escapeHtml(academyById(item.academyId)?.name || "학원")} · ${escapeHtml(item.subject)} · ${item.testDate} · ${item.percent}점</title>
+                <circle cx="${item.x}" cy="${item.y}" r="7"></circle>
+                ${latestSeriesPointIds.has(item.id) ? `<circle class="growth-latest-ring" cx="${item.x}" cy="${item.y}" r="12"></circle>` : ""}
+                <text class="growth-point-score" x="${item.x}" y="${item.y - 13}">${item.percent}</text>
+                ${pointChanges.has(item.id) ? `<text class="growth-point-change ${pointChanges.get(item.id) >= 0 ? "positive" : "negative"}" x="${item.x}" y="${item.y + 19}">${pointChanges.get(item.id) > 0 ? "+" : ""}${pointChanges.get(item.id)}</text>` : ""}
+                <text class="growth-point-date" x="${item.x}" y="194">${item.testDate.slice(5).replace("-", ".")}</text>
+              </g>
+            `).join("")}
+          </svg>
+        ` : '<div class="empty-state">선택한 학원과 과목에 응시 완료된 테스트가 없습니다.</div>'}
+      </div>
+    </section>`;
+}
+
+function openGuardianGrowthReport(academyId, subject) {
+  const { studentIds } = guardianScope();
+  const studentId = studentIds.includes(state.guardianGrowthStudentId) ? state.guardianGrowthStudentId : studentIds[0];
+  const student = studentById(studentId);
+  const snapshot = studentId ? guardianChildSnapshot(studentId) : null;
+  if (!snapshot) return;
+  const scores = snapshot.scores.filter((item) =>
+    (academyId === "all" || item.academyId === academyId) &&
+    (subject === "all" || item.subject === subject)
+  );
+  const series = [...new Set(scores.map((item) => `${item.academyId}::${item.subject}`))].map((seriesKey) => {
+    const [seriesAcademyId, seriesSubject] = seriesKey.split("::");
+    return {
+      academyId: seriesAcademyId,
+      subject: seriesSubject,
+      items: scores.filter((item) => item.academyId === seriesAcademyId && item.subject === seriesSubject)
+    };
+  });
+  const periodLabel = scores.length
+    ? `${scores[0].testDate.replaceAll("-", ".")} ~ ${scores.at(-1).testDate.replaceAll("-", ".")}`
+    : "기록 없음";
+  openModal(`
+    <header><div><h2 id="modal-title">${escapeHtml(student?.name || "자녀")} 학습 리포트</h2><p>${academyId === "all" ? "전체 학원" : escapeHtml(academyById(academyId)?.name || "학원")} · ${subject === "all" ? "전체 과목" : escapeHtml(subject)}</p></div><button class="icon-button" data-action="close-modal" aria-label="닫기">×</button></header>
+    <section class="growth-report-summary">
+      <div><span>평가 기록</span><strong>${scores.length}건</strong></div>
+      <div><span>학원·과목 흐름</span><strong>${series.length}개</strong></div>
+      <div><span>조회 기간</span><strong>${periodLabel}</strong></div>
+    </section>
+    <div class="growth-report-groups">
+      ${series.map((group) => {
+        const first = group.items[0];
+        const latest = group.items.at(-1);
+        const change = latest.percent - first.percent;
+        return `
+          <section class="growth-report-group">
+            <header><div><h3>${escapeHtml(academyById(group.academyId)?.name || "학원")} · ${escapeHtml(group.subject)}</h3><p>${first.percent}점 → ${latest.percent}점 · ${change >= 0 ? "+" : ""}${change}점</p></div></header>
+            <div class="growth-report-list">
+              ${group.items.map((item, index) => {
+                const previous = group.items[index - 1];
+                const itemChange = previous ? item.percent - previous.percent : null;
+                return `<div><time>${item.testDate.replaceAll("-", ".")}</time><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(academyById(item.academyId)?.name || "학원")} · ${escapeHtml(item.subject)}</small></span><b>${item.percent}점</b><em>${itemChange === null ? "기준" : `${itemChange >= 0 ? "+" : ""}${itemChange}점`}</em></div>`;
+              }).join("")}
+            </div>
+          </section>`;
+      }).join("") || '<div class="empty-state">표시할 평가 기록이 없습니다.</div>'}
+    </div>`);
+}
+
 function renderGuardianGrowth() {
   setPage("PARENT", "성장 추이");
   const { studentIds, academyIds } = guardianScope();
   academyIds.forEach((academyId) => trackUsageOnce("guardian.growth_viewed", academyId));
+  const selectedStudentId = studentIds.includes(state.guardianGrowthStudentId)
+    ? state.guardianGrowthStudentId
+    : studentIds[0];
+  const student = studentById(selectedStudentId);
+  const snapshot = selectedStudentId ? guardianChildSnapshot(selectedStudentId) : null;
+  const latest = snapshot?.scores.at(-1);
+  const previous = latest
+    ? snapshot.scores.slice(0, -1).reverse().find((item) => item.academyId === latest.academyId && item.subject === latest.subject)
+    : null;
+  const change = latest && previous ? latest.percent - previous.percent : null;
+  const benchmark = selectedStudentId ? guardianMoaflowBenchmark(selectedStudentId, latest) : null;
+  const nationalGradeId = nationalAchievement2025[state.guardianNationalGrade] ? state.guardianNationalGrade : "middle3";
+  const nationalGrade = nationalAchievement2025[nationalGradeId];
   return `
-    <section class="hero-panel guardian-hero">
-      <div><p class="eyebrow eyebrow-accent">GROWTH</p><h2>학원별 기록을 모아 자녀의 변화를 확인하세요</h2></div>
-    </section>
-    ${studentIds.map((studentId) => {
-      const student = studentById(studentId);
-      const snapshot = guardianChildSnapshot(studentId);
-      const latest = snapshot.scores.at(-1);
-      const previous = snapshot.scores.at(-2);
-      const change = latest && previous ? latest.percent - previous.percent : null;
-      return `
-        <article class="panel guardian-growth-card">
-          <div class="panel-head"><div><h2>${escapeHtml(student?.name || "자녀")} 성장 리포트</h2><p>연결 학원 ${snapshot.childLinks.length}곳의 실제 기록 기준</p></div></div>
-          <section class="grid four horizontal-metrics guardian-growth-metrics">
-            ${metricCard("최근 성취도", latest ? `${latest.percent}점` : "데이터 부족", latest ? academyById(latest.academyId)?.name || "" : "", false, true)}
-            ${metricCard("직전 대비", change === null ? "비교 전" : `${change >= 0 ? "+" : ""}${change}점`, "평가 성취도", change !== null && change < 0, true)}
-            ${metricCard("출석률", snapshot.attendanceRate === null ? "데이터 부족" : `${snapshot.attendanceRate}%`, "출석·지각 포함", false, true)}
-            ${metricCard("과제 완료율", snapshot.homeworkRate === null ? "데이터 부족" : `${snapshot.homeworkRate}%`, "완료·대체·면제", snapshot.homeworkRate !== null && snapshot.homeworkRate < 70, true)}
-          </section>
-          <section class="growth-chart" aria-label="${escapeHtml(student?.name || "자녀")} 평가 성장 그래프">
-            ${snapshot.scores.length ? snapshot.scores.map((item) => `
-              <div class="growth-point">
-                <div class="growth-bar-track"><span class="growth-bar" style="height:${Math.max(item.percent, 8)}%"></span></div>
-                <strong>${item.percent}</strong>
-                <span>${item.testDate.slice(5).replace("-", ".")}</span>
-                <small>${escapeHtml(academyById(item.academyId)?.name || "학원")} · ${escapeHtml(item.subject)}</small>
-              </div>
-            `).join("") : '<div class="empty-state">응시 완료된 테스트가 쌓이면 성장 추이를 보여드립니다.</div>'}
-          </section>
-        </article>`;
-    }).join("") || '<article class="panel"><div class="empty-state">연결된 자녀가 없습니다.</div></article>'}
+    <article class="panel national-education-panel">
+      <div class="panel-head national-education-head">
+        <div><h2>국가 교육지표</h2></div>
+        <span class="badge gray">2025년</span>
+      </div>
+      <div class="national-grade-tabs" role="tablist" aria-label="국가 교육지표 학년 선택">
+        ${Object.entries(nationalAchievement2025).map(([gradeId, grade]) => `
+          <button type="button" role="tab" class="${gradeId === nationalGradeId ? "active" : ""}" aria-selected="${gradeId === nationalGradeId}" data-action="select-national-grade" data-grade="${gradeId}">${grade.label}</button>
+        `).join("")}
+      </div>
+      <section class="national-indicator-grid">
+        ${nationalGrade.subjects.map((subject) => `
+          <div class="national-indicator">
+            <h3>${subject.name}</h3>
+            <div class="national-stat-block achievement">
+              <div class="national-stat-heading"><span><b>보통학력 이상</b><small>3수준 이상</small></span><strong>${subject.levelThree.toFixed(1)}%</strong></div>
+              <div class="national-stat-track" aria-hidden="true"><i style="width:${subject.levelThree}%"></i></div>
+            </div>
+            <div class="national-stat-block below-basic">
+              <div class="national-stat-heading"><span><b>기초학력 미달</b><small>1수준</small></span><strong>${subject.levelOne.toFixed(1)}%</strong></div>
+              <div class="national-stat-track" aria-hidden="true"><i style="width:${subject.levelOne}%"></i></div>
+            </div>
+          </div>
+        `).join("")}
+      </section>
+      <footer class="national-education-source">
+        <span>표집 25,992명 · 539개교 · 출처: 교육부·한국교육과정평가원</span>
+        <a href="https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&amp;boardSeq=106502&amp;lev=0&amp;m=020402&amp;opType=N&amp;page=1&amp;s=moe&amp;searchType=null&amp;statusYN=W" target="_blank" rel="noopener noreferrer">교육부 원문 보기</a>
+      </footer>
+    </article>
+    ${studentIds.length ? `
+      <fieldset class="guardian-growth-selector">
+        <legend>학생 선택</legend>
+        <div class="guardian-growth-options">
+          ${studentIds.map((studentId) => `
+            <label class="guardian-growth-option">
+              <input type="radio" name="guardian-growth-student" value="${studentId}" ${studentId === selectedStudentId ? "checked" : ""} />
+              <span class="guardian-growth-check" aria-hidden="true"></span>
+              <span><strong>${escapeHtml(studentById(studentId)?.name || "자녀")}</strong><small>${studentSchoolGrade(studentId)}</small></span>
+            </label>
+          `).join("")}
+        </div>
+      </fieldset>
+      <article class="panel guardian-growth-card">
+        <div class="panel-head"><div><h2>${escapeHtml(student?.name || "자녀")} 성장 리포트</h2><p>연결 학원 ${snapshot.childLinks.length}곳의 실제 기록 기준</p></div></div>
+        <section class="grid four horizontal-metrics guardian-growth-metrics">
+          ${metricCard("최근 성취도", latest ? `${latest.percent}점` : "데이터 부족", latest ? academyById(latest.academyId)?.name || "" : "", false, true)}
+          ${metricCard("직전 대비", change === null ? "비교 전" : `${change >= 0 ? "+" : ""}${change}점`, "평가 성취도", change !== null && change < 0, true)}
+          ${metricCard("출석률", snapshot.attendanceRate === null ? "데이터 부족" : `${snapshot.attendanceRate}%`, "출석·지각 포함", false, true)}
+          ${metricCard("과제 완료율", snapshot.homeworkRate === null ? "데이터 부족" : `${snapshot.homeworkRate}%`, "완료·대체·면제", snapshot.homeworkRate !== null && snapshot.homeworkRate < 70, true)}
+        </section>
+        <section class="moaflow-benchmark-section">
+          <div class="subsection-head"><h3>MoaFlow 학습 비교</h3><span class="badge green">${escapeHtml(benchmark.grade)} · ${escapeHtml(benchmark.subject)}</span></div>
+          <div class="grid four horizontal-metrics moaflow-benchmark-metrics">
+            ${metricCard("비교 학생", `${benchmark.cohortSize}명`, `${benchmark.sampleMinimum}명 이상부터 제공`, false, true)}
+            ${metricCard("MoaFlow 평균", benchmark.average === null ? "표본 부족" : `${benchmark.average}점`, "동일 학년·과목", false, true)}
+            ${metricCard("MoaFlow 상위", benchmark.topPercent === null ? "표본 부족" : `${benchmark.topPercent}%`, "동일 학년·과목", false, true)}
+            ${metricCard("비교 기준", "최근 평가", "학생별 최신 성취도", false, true)}
+          </div>
+        </section>
+        ${renderGuardianGrowthChart(snapshot, student?.name)}
+      </article>
+    ` : '<article class="panel"><div class="empty-state">연결된 자녀가 없습니다.</div></article>'}
   `;
 }
 
@@ -2254,28 +2833,33 @@ function renderGuardianComments() {
     }))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const filtered = guardianFilters(comments).events;
+  const unreadMessages = guardianUnreadCommentEvents();
   return `
-    <section class="hero-panel guardian-hero">
-      <div><p class="eyebrow eyebrow-accent">ACADEMY COMMENTS</p><h2>학원에서 보호자에게 공유한 코멘트만 확인합니다</h2></div>
-      <div class="hero-progress"><strong>${comments.length}</strong><span>공유 코멘트</span></div>
+    <section class="guardian-summary-strip">
+      <span class="badge gray">공유 코멘트 ${comments.length}</span>
+      ${unreadMessages.length ? `<span class="badge orange">새 메시지 ${unreadMessages.length}</span>` : ""}
     </section>
     <article class="panel guardian-comments-panel">
       <div class="panel-head"><div><h2>선생님 코멘트</h2><p>학원 내부 메모는 표시되지 않습니다.</p></div>${renderGuardianFilters(comments)}</div>
       <div class="guardian-comment-list">
-        ${filtered.length ? filtered.map((item) => `
-          <article class="guardian-comment">
+        ${filtered.length ? filtered.map((item) => {
+          const unread = guardianUnreadCommentEvents(item.consultationId);
+          const originalUnread = unread.some((message) => message.id === item.id);
+          return `
+          <article class="guardian-comment ${unread.length ? "unread" : ""}">
             <div>
               <span class="source-tag">${escapeHtml(academyById(item.academyId)?.name || "학원")}</span>
               <span class="badge gray">${escapeHtml(studentById(item.studentId)?.name || "자녀")}</span>
               <time>${formatDateTime(item.createdAt)}</time>
+              ${unread.length ? `<span class="badge orange">새 메시지 ${unread.length}</span><button class="button tertiary compact" data-action="mark-guardian-comment-read" data-consultation-id="${item.consultationId}">대화 확인</button>` : '<span class="badge gray">확인 완료</span>'}
             </div>
-            <p>${escapeHtml(item.detail)}</p>
+            <p class="${originalUnread ? "unread-message" : ""}">${escapeHtml(item.detail)}</p>
             ${renderCommentReplies(
               state.consultationRecords.find((record) => record.id === item.consultationId),
               "guardian"
             )}
-          </article>
-        `).join("") : '<div class="empty-state">공유된 코멘트가 없습니다.</div>'}
+          </article>`;
+        }).join("") : '<div class="empty-state">공유된 코멘트가 없습니다.</div>'}
       </div>
     </article>`;
 }
@@ -2286,16 +2870,15 @@ function renderGuardianNotifications() {
   const filtered = guardianFilters(events).events;
   const unread = events.filter((item) => !state.guardianNotificationReads.includes(item.id)).length;
   return `
-    <section class="hero-panel guardian-hero">
-      <div><p class="eyebrow eyebrow-accent">NOTIFICATIONS</p><h2>놓치지 말아야 할 학원 소식을 모았습니다</h2></div>
-      <div class="hero-progress"><strong>${unread}</strong><span>읽지 않음</span></div>
+    <section class="guardian-summary-strip">
+      <span class="badge ${unread ? "orange" : "gray"}">읽지 않은 알림 ${unread}</span>
     </section>
     <article class="panel guardian-notification-panel">
       <div class="panel-head">
         <div><h2>전체 알림</h2><p>연결된 자녀와 학원의 알림만 표시됩니다.</p></div>
-        <div class="guardian-notification-actions">${renderGuardianFilters(events)}<button class="button secondary compact" data-action="mark-all-notifications-read" ${unread ? "" : "disabled"}>모두 읽음</button></div>
+        <div class="guardian-notification-actions">${renderGuardianFilters(events, `<button class="button secondary compact guardian-filter-action" data-action="mark-all-notifications-read" ${unread ? "" : "disabled"}>모두 읽음</button>`)}</div>
       </div>
-      <div class="notification-list">
+      <div class="notification-list guardian-notification-scroll">
         ${filtered.length ? filtered.map((item) => {
           const isRead = state.guardianNotificationReads.includes(item.id);
           return `
@@ -2561,6 +3144,29 @@ function pilotStatusLabel(status) {
   );
 }
 
+function guardianUnreadCommentEvents(consultationId = null) {
+  if (!currentUser() || currentRole() !== "guardian") return [];
+  const { linkedPairs } = guardianScope();
+  const readIds = new Set(state.guardianNotificationReads);
+  const commentEvents = state.consultationRecords
+    .filter(
+      (item) =>
+        item.guardianSummary &&
+        linkedPairs.has(`${item.studentId}:${item.academyId}`) &&
+        (!consultationId || item.id === consultationId)
+    )
+    .map((item) => ({ id: `comment-${item.id}`, consultationId: item.id }));
+  const replyEvents = state.guardianCommentReplies
+    .filter(
+      (item) =>
+        item.authorRole === "academy" &&
+        linkedPairs.has(`${item.studentId}:${item.academyId}`) &&
+        (!consultationId || item.consultationId === consultationId)
+    )
+    .map((item) => ({ id: `reply-${item.id}`, consultationId: item.consultationId }));
+  return [...commentEvents, ...replyEvents].filter((item) => !readIds.has(item.id));
+}
+
 function pilotStatusTone(status) {
   if (status === "active") return "green";
   if (status === "paused") return "orange";
@@ -2656,7 +3262,7 @@ function auditItems(logs) {
       const actor = userById(log.actorUserId);
       const actorRole = actor ? roleMeta[actor.role]?.label || "사용자" : "시스템";
       return `
-        <div class="activity-item">
+        <div class="activity-item" data-record-date="${escapeHtml(log.createdAt.slice(0, 10))}" data-record-search="${escapeHtml(`${log.summary} ${userRoleName(actor)} ${actorRole} ${formatDateTime(log.createdAt)}`.toLocaleLowerCase("ko-KR"))}">
           <span class="activity-icon activity-role">${escapeHtml(actorRole)}</span>
           <div><strong>${escapeHtml(log.summary)}</strong><small>${escapeHtml(userRoleName(actor))} · ${formatDateTime(log.createdAt)}</small></div>
         </div>`;
@@ -2672,9 +3278,10 @@ function renderAcademy() {
         <div class="panel-head"><div><h2>학원 기본 정보</h2></div></div>
         <div class="form-grid">
           <div class="full"><label for="academy-name">학원명</label><input id="academy-name" value="${escapeHtml(academy.name)}" /></div>
-          <div class="full"><label for="academy-business-number">사업자등록번호</label><input id="academy-business-number" value="${escapeHtml(academy.businessRegistrationNumber)}" inputmode="numeric" maxlength="12" placeholder="000-00-00000" /></div>
-          <div><label for="academy-phone">대표번호</label><input id="academy-phone" value="${escapeHtml(academy.phone)}" /></div>
+          <div><label for="academy-business-number">사업자등록번호</label><input id="academy-business-number" value="${escapeHtml(academy.businessRegistrationNumber)}" inputmode="numeric" maxlength="12" placeholder="000-00-00000" /></div>
           <div><label for="academy-owner">대표자</label><input id="academy-owner" value="${escapeHtml(userById(academy.ownerUserId)?.name || "한도담")}" disabled /></div>
+          <div><label for="academy-phone">대표번호</label><input id="academy-phone" value="${escapeHtml(academy.phone)}" /></div>
+          <div><label for="academy-main-program">주요 프로그램</label><input id="academy-main-program" value="${escapeHtml(academy.mainProgram || "")}" maxlength="80" placeholder="예: 중등 수학 심화·내신 대비" /></div>
           <div class="full"><label for="academy-address">주소</label><input id="academy-address" value="${escapeHtml(academy.address)}" /></div>
         </div>
         <div class="form-actions"><button class="button primary" data-action="save-academy">학원 정보 저장</button></div>
@@ -2964,6 +3571,7 @@ function renderStudentDetail(studentId) {
     .filter((item) => item.studentAttempts.length)
     .sort((a, b) => b.testDate.localeCompare(a.testDate));
   const canViewConsultations = hasPermission("consultation.manage");
+  const canManageComments = hasPermission("comment.manage") && enrollment.status === "active";
   const consultationHistory = canViewConsultations
     ? state.consultationRecords
         .filter((item) => item.academyId === academy.id && item.studentId === studentId)
@@ -2989,7 +3597,7 @@ function renderStudentDetail(studentId) {
       <span class="badge ${enrollment.status === "active" ? "green" : "purple"}">${enrollment.status === "active" ? "재원" : "휴원"}</span>
     </div>
 
-    <section class="grid four horizontal-metrics">
+    <section class="grid four horizontal-metrics student-profile-metrics">
       ${metricCard("생년월일", student.birthDate, "", false, true)}
       ${metricCard("첫 등원일", enrollment.startedAt, "", false, true)}
       ${metricCard("소속 반", enrollment.className, "", false, true)}
@@ -3056,8 +3664,9 @@ function renderStudentDetail(studentId) {
           }
         </section>
         <section class="panel-subsection">
-          <h3 class="panel-subsection-title">원생 관련 이력</h3>
-          <div class="activity-list">${auditItems(relatedAudits)}</div>
+          <div class="record-subsection-head student-activity-head"><h3 class="panel-subsection-title">원생 관련 이력</h3>${recordSearchControl("student-activity-records", "활동 내용 검색")}</div>
+          <div class="activity-list record-scroll" data-record-list="student-activity-records">${auditItems(relatedAudits)}</div>
+          <div class="empty-state hidden" data-record-empty="student-activity-records">검색 결과가 없습니다.</div>
         </section>
       </article>
     </section>
@@ -3073,14 +3682,15 @@ function renderStudentDetail(studentId) {
             : ""
         }
       </div>
+      ${homeworkHistory.length ? recordSearchControl("student-homework-records", "과제명·상태 검색") : ""}
       ${
         homeworkHistory.length
-          ? `<div class="table-wrap">
+          ? `<div class="table-wrap record-scroll">
               <table class="data-table student-homework-history">
                 <thead><tr><th>날짜</th><th>과제명</th><th>반</th><th>수행 상태</th><th>예외 메모</th></tr></thead>
-                <tbody>${homeworkHistory
+                <tbody data-record-list="student-homework-records">${homeworkHistory
                   .map(
-                    (item) => `<tr>
+                    (item) => `<tr data-record-date="${escapeHtml(item.assignedDate)}" data-record-search="${escapeHtml(recordSearchText(item.assignedDate, item.title, item.className, homeworkStatusLabel(item.studentStatus.status), item.studentStatus.note))}">
                       <td>${escapeHtml(item.assignedDate)}</td>
                       <td><strong>${escapeHtml(item.title)}</strong></td>
                       <td>${escapeHtml(item.className)}</td>
@@ -3090,7 +3700,7 @@ function renderStudentDetail(studentId) {
                   )
                   .join("")}</tbody>
               </table>
-            </div>`
+            </div><div class="empty-state hidden" data-record-empty="student-homework-records">검색 결과가 없습니다.</div>`
           : '<div class="empty-state">등록된 과제 수행 기록이 없습니다.</div>'
       }
     </article>
@@ -3104,17 +3714,18 @@ function renderStudentDetail(studentId) {
             : ""
         }
       </div>
+      ${testHistory.length ? recordSearchControl("student-test-records", "평가명·상태 검색") : ""}
       ${
         testHistory.length
-          ? `<div class="table-wrap">
+          ? `<div class="table-wrap record-scroll">
               <table class="data-table student-test-history">
                 <thead><tr><th>시행일</th><th>평가명</th><th>상태</th><th>1차 점수</th><th>재시험</th><th>응시 횟수</th><th>수정 이력</th></tr></thead>
-                <tbody>${testHistory
+                <tbody data-record-list="student-test-records">${testHistory
                   .map((item) => {
                     const first = item.firstAttempt;
                     const status = first?.status || "taken";
                     const tone = status === "taken" ? "green" : status === "absent" ? "red" : "gray";
-                    return `<tr>
+                    return `<tr data-record-date="${escapeHtml(item.testDate)}" data-record-search="${escapeHtml(recordSearchText(item.testDate, item.title, testStatusLabel(status), first?.score, item.latestRetest?.score))}">
                       <td>${escapeHtml(item.testDate)}</td>
                       <td><strong>${escapeHtml(item.title)}</strong></td>
                       <td><span class="badge ${tone}">${testStatusLabel(status)}</span></td>
@@ -3126,7 +3737,7 @@ function renderStudentDetail(studentId) {
                   })
                   .join("")}</tbody>
               </table>
-            </div>`
+            </div><div class="empty-state hidden" data-record-empty="student-test-records">검색 결과가 없습니다.</div>`
           : '<div class="empty-state">등록된 테스트 결과가 없습니다.</div>'
       }
     </article>
@@ -3134,11 +3745,10 @@ function renderStudentDetail(studentId) {
     <article class="panel student-consultation-panel">
       <div class="panel-head">
         <div><h2>상담 기록</h2></div>
-        ${
-          canViewConsultations && enrollment.status === "active"
-            ? `<button class="button secondary compact" data-action="open-student-consultations" data-student-id="${student.id}">상담 기록 관리</button>`
-            : ""
-        }
+        <div class="row-actions">
+          ${canViewConsultations && enrollment.status === "active" ? `<button class="button secondary compact" data-action="open-student-consultations" data-student-id="${student.id}">상담 기록 관리</button>` : ""}
+          ${canManageComments ? `<button class="button secondary compact" data-action="open-student-comments" data-student-id="${student.id}">학부모 대화 열기</button>` : ""}
+        </div>
       </div>
       ${
         !canViewConsultations
@@ -3156,15 +3766,15 @@ function renderStudentDetail(studentId) {
                 : ""
             }
             <section class="panel-subsection">
-              <h3 class="panel-subsection-title">상담 이력</h3>
+              <div class="record-subsection-head"><h3 class="panel-subsection-title">상담 이력</h3>${consultationHistory.length ? recordSearchControl("student-consultation-records", "상담 내용 검색") : ""}</div>
               ${
                 consultationHistory.length
-                  ? `<div class="table-wrap">
+                  ? `<div class="table-wrap record-scroll">
                       <table class="data-table student-consultation-history">
                         <thead><tr><th>상담일</th><th>상담 유형</th><th>후속조치</th><th>보호자 공유 요약</th><th>내부 메모</th></tr></thead>
-                        <tbody>${consultationHistory
+                        <tbody data-record-list="student-consultation-records">${consultationHistory
                           .map(
-                            (item) => `<tr>
+                            (item) => `<tr data-record-date="${escapeHtml(item.consultationDate)}" data-record-search="${escapeHtml(recordSearchText(item.consultationDate, consultationTypeLabel(item.type), item.nextAction, item.guardianSummary, item.internalMemo))}">
                               <td>${escapeHtml(item.consultationDate)}</td>
                               <td><span class="badge gray">${consultationTypeLabel(item.type)}</span></td>
                               <td><strong>${escapeHtml(item.nextAction)}</strong></td>
@@ -3174,7 +3784,7 @@ function renderStudentDetail(studentId) {
                           )
                           .join("")}</tbody>
                       </table>
-                    </div>`
+                    </div><div class="empty-state hidden" data-record-empty="student-consultation-records">검색 결과가 없습니다.</div>`
                   : '<div class="empty-state">등록된 상담 기록이 없습니다.</div>'
               }
             </section>`
@@ -3352,6 +3962,42 @@ function renderPilots() {
   `;
 }
 
+function recordSearchControl(listId, placeholder = "기록 내용 검색") {
+  return `<div class="record-search-control">
+    <input type="search" data-record-search-input="${listId}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder)}" />
+    <div class="record-date-range">
+      <span>기간</span>
+      <input type="date" data-record-date-from="${listId}" aria-label="검색 시작일" />
+      <span aria-hidden="true">~</span>
+      <input type="date" data-record-date-to="${listId}" aria-label="검색 종료일" />
+    </div>
+  </div>`;
+}
+
+function recordSearchText(...values) {
+  return values.filter(Boolean).join(" ").toLocaleLowerCase("ko-KR");
+}
+
+function applyRecordSearch(input) {
+  const listId = input.dataset.recordSearchInput || input.dataset.recordDateFrom || input.dataset.recordDateTo;
+  const list = document.querySelector(`[data-record-list="${listId}"]`);
+  if (!list) return;
+  const query = document.querySelector(`[data-record-search-input="${listId}"]`)?.value.trim().toLocaleLowerCase("ko-KR") || "";
+  const dateFrom = document.querySelector(`[data-record-date-from="${listId}"]`)?.value || "";
+  const dateTo = document.querySelector(`[data-record-date-to="${listId}"]`)?.value || "";
+  let visibleCount = 0;
+  list.querySelectorAll("[data-record-search]").forEach((item) => {
+    const itemDate = item.dataset.recordDate || "";
+    const visible =
+      (!query || item.dataset.recordSearch.includes(query)) &&
+      (!dateFrom || itemDate >= dateFrom) &&
+      (!dateTo || itemDate <= dateTo);
+    item.classList.toggle("hidden", !visible);
+    if (visible) visibleCount += 1;
+  });
+  document.querySelector(`[data-record-empty="${listId}"]`)?.classList.toggle("hidden", visibleCount > 0);
+}
+
 function showAcademyInfo(academyId) {
   if (!hasPermission("pilot.read")) return;
   const academy = academyById(academyId);
@@ -3367,6 +4013,7 @@ function showAcademyInfo(academyId) {
       <div><dt>대표자</dt><dd>${escapeHtml(owner?.name || "미등록")}</dd></div>
       <div><dt>사업자등록번호</dt><dd>${escapeHtml(academy.businessRegistrationNumber || "미등록")}</dd></div>
       <div><dt>연락처</dt><dd>${escapeHtml(academy.phone || "미등록")}</dd></div>
+      <div><dt>주요 프로그램</dt><dd>${escapeHtml(academy.mainProgram || "미등록")}</dd></div>
       <div><dt>주소</dt><dd>${escapeHtml(academy.address || "미등록")}</dd></div>
       <div><dt>등록일</dt><dd>${formatDateTime(academy.createdAt)}</dd></div>
       <div><dt>원생</dt><dd>${enrollmentCount}명</dd></div>
@@ -3500,7 +4147,7 @@ function renderData() {
   setPage("COMMON DATA MODEL", "공통 데이터 구조");
   const schemas = [
     ["users", state.users.length, ["id · 휴대전화", "role · 계정 역할", "status · 활성 상태"]],
-    ["academies", state.academies.length, ["owner_user_id", "business_registration_number", "pilot_status · created_at"]],
+    ["academies", state.academies.length, ["owner_user_id", "business_registration_number", "main_program · pilot_status · created_at"]],
     ["staff_memberships", state.staffMemberships.length, ["academy_id", "user_id · role", "grants · 위임 권한"]],
     ["staff_class_assignments", state.staffClassAssignments.length, ["academy_id", "user_id", "class_name · 복수 담당"]],
     ["students", state.students.length, ["id · 최소 식별정보", "name · birth_date", "created_by · created_at"]],
@@ -3550,7 +4197,12 @@ function renderGuardianData() {
     (item) => item.guardianUserId === currentUser().id && item.status === "verified"
   );
   const linkedChildren = new Set(userLinks.map((item) => item.studentId)).size;
+  const grantedConsents = userConsents.filter((item) => item.status === "granted").length;
   return `
+    <section class="guardian-summary-strip">
+      <span class="badge green">연결 자녀 ${linkedChildren}명</span>
+      <span class="badge gray">유효 동의 ${grantedConsents}건</span>
+    </section>
     <section class="grid two">
       <article class="panel">
         <div class="panel-head"><div><h2>계정 정보</h2></div></div>
@@ -3567,7 +4219,7 @@ function renderGuardianData() {
           <div class="check-list">
             ${checkItem("휴대전화 본인확인 완료", maskPhone(currentUser().phone))}
             ${checkItem("학생 정보 최소 수집", "연결 확인에 필요한 항목만 저장")}
-            ${checkItem("동의 이력 보관", `유효 동의 ${userConsents.filter((item) => item.status === "granted").length}건`)}
+            ${checkItem("동의 이력 보관", `유효 동의 ${grantedConsents}건`)}
           </div>
         </section>
         <section class="panel-subsection">
@@ -3606,20 +4258,22 @@ function renderAudit() {
       ${metricCard(isOperator ? "민감 변경" : "권한·연결 변경", visibleAuditLogs.filter((item) => item.action.includes("permission") || item.action.includes("guardian_link")).length, isOperator ? "권한·연결" : "", true)}
     </section>
     <article class="panel">
-      <div class="panel-head"><div><h2>${isOperator ? "변경·접근 이력" : "상세 활동 내역"}</h2></div></div>
-      <div class="table-wrap">
+      <div class="panel-head"><div><h2>${isOperator ? "변경·접근 이력" : "상세 활동 내역"}</h2></div>${recordSearchControl("audit-records", "활동 내용·행위자 검색")}</div>
+      <div class="table-wrap record-scroll audit-record-scroll">
         <table class="data-table">
           <thead><tr><th>시각</th><th>행위자</th><th>${isOperator ? "이벤트" : "활동 유형"}</th><th>내용</th>${isOperator ? "<th>대상</th>" : ""}</tr></thead>
-          <tbody>
+          <tbody data-record-list="audit-records">
             ${visibleAuditLogs
               .map((log) => {
                 const actor = userById(log.actorUserId);
-                return `<tr><td>${formatDateTime(log.createdAt)}</td><td>${escapeHtml(userRoleName(actor))}</td><td><span class="badge gray">${escapeHtml(isOperator ? log.action : auditActionLabel(log.action))}</span></td><td>${escapeHtml(log.summary)}</td>${isOperator ? `<td>${escapeHtml(log.targetType)} · ${escapeHtml(log.targetId)}</td>` : ""}</tr>`;
+                const activityType = isOperator ? log.action : auditActionLabel(log.action);
+                return `<tr data-record-date="${escapeHtml(log.createdAt.slice(0, 10))}" data-record-search="${escapeHtml(recordSearchText(formatDateTime(log.createdAt), userRoleName(actor), activityType, log.summary, log.targetType, log.targetId))}"><td>${formatDateTime(log.createdAt)}</td><td>${escapeHtml(userRoleName(actor))}</td><td><span class="badge gray">${escapeHtml(activityType)}</span></td><td>${escapeHtml(log.summary)}</td>${isOperator ? `<td>${escapeHtml(log.targetType)} · ${escapeHtml(log.targetId)}</td>` : ""}</tr>`;
               })
               .join("")}
           </tbody>
         </table>
       </div>
+      <div class="empty-state hidden" data-record-empty="audit-records">검색 결과가 없습니다.</div>
     </article>
   `;
 }
@@ -3926,14 +4580,16 @@ function showAttendanceHistory(recordId) {
     ({ present: "출석", late: "지각", absent: "결석", early_leave: "조퇴" })[status] || "미처리";
   openModal(`
     <header><div><h2 id="modal-title">출결 수정 이력</h2><p>${escapeHtml(student?.name || "학생")} · ${escapeHtml(record.lessonDate)} · ${escapeHtml(record.className)}</p></div><button class="icon-button" data-action="close-modal" aria-label="닫기">×</button></header>
-    <div class="history-list">
+    ${recordSearchControl("attendance-change-records", "수정 내용 검색")}
+    <div class="history-list record-scroll" data-record-list="attendance-change-records">
       ${(record.history || []).map((item) => `
-        <div class="history-item">
+        <div class="history-item" data-record-date="${escapeHtml(item.changedAt.slice(0, 10))}" data-record-search="${escapeHtml(recordSearchText(label(item.previousStatus), label(item.nextStatus), userById(item.changedBy)?.name, formatDateTime(item.changedAt), item.previousArrivalTime, item.nextArrivalTime, item.nextReason))}">
           <div><strong>${label(item.previousStatus)} → ${label(item.nextStatus)}</strong><small>${escapeHtml(userById(item.changedBy)?.name || "사용자")} · ${formatDateTime(item.changedAt)}</small></div>
           <p>시각 ${escapeHtml(item.previousArrivalTime || "—")} → ${escapeHtml(item.nextArrivalTime || "—")} · 사유 ${escapeHtml(item.nextReason || "없음")}</p>
         </div>
       `).join("") || '<div class="empty-state">수정 이력이 없습니다.</div>'}
-    </div>`);
+    </div>
+    <div class="empty-state hidden" data-record-empty="attendance-change-records">검색 결과가 없습니다.</div>`);
 }
 
 function saveLearning(event) {
@@ -4219,12 +4875,14 @@ function showScoreHistory(assessmentId) {
   if (!assessment) return;
   openModal(`
     <header><div><h2 id="modal-title">점수 수정이력</h2><p>${escapeHtml(assessment.title)} · 원장 전용</p></div><button class="icon-button" data-action="close-modal" aria-label="닫기">×</button></header>
-    <div class="history-list">
-      ${(assessment.scoreHistory || []).map((item) => `<div class="history-item">
+    ${recordSearchControl("score-change-records", "학생명·수정 내용 검색")}
+    <div class="history-list record-scroll" data-record-list="score-change-records">
+      ${(assessment.scoreHistory || []).map((item) => `<div class="history-item" data-record-date="${escapeHtml(item.changedAt.slice(0, 10))}" data-record-search="${escapeHtml(recordSearchText(studentById(item.studentId)?.name, testStatusLabel(item.previousStatus), testStatusLabel(item.nextStatus), userById(item.changedBy)?.name, formatDateTime(item.changedAt), item.previousScore, item.nextScore, item.reason))}">
         <div><strong>${escapeHtml(studentById(item.studentId)?.name || "학생")} · ${testStatusLabel(item.previousStatus)} → ${testStatusLabel(item.nextStatus)}</strong><small>${escapeHtml(userById(item.changedBy)?.name || "사용자")} · ${formatDateTime(item.changedAt)}</small></div>
         <p>점수 ${item.previousScore ?? "—"} → ${item.nextScore ?? "—"} · ${escapeHtml(item.reason)}</p>
       </div>`).join("") || '<div class="empty-state">수정 이력이 없습니다.</div>'}
     </div>
+    <div class="empty-state hidden" data-record-empty="score-change-records">검색 결과가 없습니다.</div>
   `);
 }
 
@@ -4321,6 +4979,13 @@ function saveCommentReply(event) {
   if (!canReply) {
     toast("이 코멘트에 답변할 권한이 없습니다.", "error");
     return;
+  }
+
+  if (isGuardian) {
+    const unread = guardianUnreadCommentEvents(consultation.id);
+    state.guardianNotificationReads = [
+      ...new Set([...state.guardianNotificationReads, ...unread.map((item) => item.id)])
+    ];
   }
 
   const reply = {
@@ -4505,8 +5170,9 @@ function saveAcademy() {
   const name = document.querySelector("#academy-name").value.trim();
   const businessRegistrationNumber = document.querySelector("#academy-business-number").value.trim();
   const phone = document.querySelector("#academy-phone").value.trim();
+  const mainProgram = document.querySelector("#academy-main-program").value.trim();
   const address = document.querySelector("#academy-address").value.trim();
-  if (!name || !businessRegistrationNumber || !phone || !address) {
+  if (!name || !businessRegistrationNumber || !phone || !mainProgram || !address) {
     toast("학원 정보를 모두 입력해주세요.", "error");
     return;
   }
@@ -4517,6 +5183,7 @@ function saveAcademy() {
   academy.name = name;
   academy.businessRegistrationNumber = businessRegistrationNumber;
   academy.phone = phone;
+  academy.mainProgram = mainProgram;
   academy.address = address;
   addAudit("academy.updated", "academy", academy.id, `${name} 기본 정보 수정`);
   persistState();
@@ -4705,13 +5372,23 @@ function saveSupportRequest(requestId) {
     request.academyId
   );
   persistState();
+  if (isGuardian) renderShell();
   renderView();
   toast("처리 상태를 저장했습니다.");
 }
 
 document.addEventListener("click", (event) => {
   const authRole = event.target.closest("[data-auth-role]");
-  if (authRole) setAuthRole(authRole.dataset.authRole);
+  if (authRole) {
+    setAuthRole(authRole.dataset.authRole);
+    if (authRole.dataset.authDirect === "true") showPhoneStep();
+  }
+
+  const navigationGroup = event.target.closest("[data-nav-group]");
+  if (navigationGroup && ["academy_owner", "academy_instructor"].includes(currentRole())) {
+    toggleNavigationGroup(navigationGroup.dataset.navGroup);
+    return;
+  }
 
   const viewTarget = event.target.closest("[data-view], [data-view-target]");
   if (viewTarget && currentUser()) {
@@ -4733,6 +5410,27 @@ document.addEventListener("click", (event) => {
   if (actionName === "open-student-modal") openStudentModal();
   if (actionName === "open-csv-modal") openCsvModal();
   if (actionName === "open-guardian-connect-modal") openGuardianConnectModal();
+  if (actionName === "select-national-grade") {
+    if (nationalAchievement2025[action.dataset.grade]) {
+      state.guardianNationalGrade = action.dataset.grade;
+      persistState();
+      renderView();
+    }
+  }
+  if (actionName === "select-growth-academy") {
+    state.guardianGrowthAcademyId = action.dataset.academyId || "all";
+    state.guardianGrowthSubject = "all";
+    persistState();
+    renderView();
+  }
+  if (actionName === "select-growth-subject") {
+    state.guardianGrowthSubject = action.dataset.subject || "all";
+    persistState();
+    renderView();
+  }
+  if (actionName === "open-growth-report") {
+    openGuardianGrowthReport(action.dataset.academyId || "all", action.dataset.subject || "all");
+  }
   if (actionName === "load-previous-learning") loadPreviousLearning();
   if (actionName === "bulk-attendance") applyBulkAttendance(action.dataset.status);
   if (actionName === "attendance-filter") {
@@ -4835,6 +5533,29 @@ document.addEventListener("click", (event) => {
     renderShell();
     renderView();
   }
+  if (actionName === "select-consultation-student") {
+    state.consultationStudentId = action.dataset.studentId;
+    persistState();
+    renderView();
+  }
+  if (actionName === "select-academy-comment-student") {
+    state.academyCommentStudentId = action.dataset.studentId;
+    persistState();
+    renderView();
+  }
+  if (actionName === "open-student-comments") {
+    const enrollment = academyCommentEnrollments().find((item) => item.studentId === action.dataset.studentId);
+    if (!enrollment || !hasPermission("comment.manage")) {
+      toast("학부모 소통을 관리할 권한이 없습니다.", "error");
+      return;
+    }
+    state.activeView = "academy_comments";
+    state.selectedStudentId = null;
+    state.academyCommentStudentId = enrollment.studentId;
+    persistState();
+    renderShell();
+    renderView();
+  }
   if (actionName === "change-student-class") changeStudentClass(action.dataset.studentId);
   if (actionName === "close-modal") closeModal();
   if (actionName === "invite-guardian") showInvitation(action.dataset.studentId);
@@ -4847,6 +5568,7 @@ document.addEventListener("click", (event) => {
     if (!state.guardianNotificationReads.includes(action.dataset.notificationId)) {
       state.guardianNotificationReads.push(action.dataset.notificationId);
       persistState();
+      renderShell();
       renderView();
     }
   }
@@ -4855,8 +5577,21 @@ document.addEventListener("click", (event) => {
       ...new Set([...state.guardianNotificationReads, ...guardianNotificationEvents().map((item) => item.id)])
     ];
     persistState();
+    renderShell();
     renderView();
     toast("모든 알림을 읽음 처리했습니다.");
+  }
+  if (actionName === "mark-guardian-comment-read") {
+    const unread = guardianUnreadCommentEvents(action.dataset.consultationId);
+    if (unread.length) {
+      state.guardianNotificationReads = [
+        ...new Set([...state.guardianNotificationReads, ...unread.map((item) => item.id)])
+      ];
+      persistState();
+      renderShell();
+      renderView();
+      toast("새 코멘트를 확인했습니다.");
+    }
   }
   if (actionName === "mark-academy-comment-read") {
     const unread = academyUnreadGuardianReplies(action.dataset.consultationId);
@@ -4895,9 +5630,23 @@ document.addEventListener("submit", (event) => {
 
 document.addEventListener("input", (event) => {
   if (event.target.id === "student-search") applyStudentListFilters();
+  if (event.target.id === "consultation-directory-search") applyCommunicationDirectoryFilters("consultation");
+  if (event.target.id === "academy-comment-directory-search") applyCommunicationDirectoryFilters("academy-comment");
+  if (event.target.matches("[data-record-search-input]")) applyRecordSearch(event.target);
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-record-date-from], [data-record-date-to]")) applyRecordSearch(event.target);
+  if (event.target.name === "guardian-growth-student") {
+    guardianScope().academyIds.forEach((academyId) =>
+      trackUsageOnce("guardian.growth_filter_used", academyId)
+    );
+    state.guardianGrowthStudentId = event.target.value;
+    state.guardianGrowthAcademyId = "all";
+    state.guardianGrowthSubject = "all";
+    persistState();
+    renderView();
+  }
   if (event.target.id === "guardian-student-filter") {
     if (state.activeView === "growth") {
       guardianScope().academyIds.forEach((academyId) =>
@@ -4949,6 +5698,12 @@ document.addEventListener("change", (event) => {
     )
   ) {
     applyStudentListFilters();
+  }
+  if (["consultation-directory-class", "consultation-directory-status"].includes(event.target.id)) {
+    applyCommunicationDirectoryFilters("consultation");
+  }
+  if (["academy-comment-directory-class", "academy-comment-directory-status"].includes(event.target.id)) {
+    applyCommunicationDirectoryFilters("academy-comment");
   }
   if (event.target.id === "attendance-select-all") {
     document.querySelectorAll(".attendance-row-check").forEach((checkbox) => {
@@ -5021,16 +5776,6 @@ document.addEventListener("change", (event) => {
   if (event.target.id === "analytics-student") {
     trackUsageOnce("academy.analytics_filter_used", currentAcademy().id);
     state.analyticsStudentId = event.target.value;
-    persistState();
-    renderView();
-  }
-  if (event.target.id === "consultation-student") {
-    state.consultationStudentId = event.target.value;
-    persistState();
-    renderView();
-  }
-  if (event.target.id === "academy-comment-filter") {
-    state.academyCommentStudentId = event.target.value;
     persistState();
     renderView();
   }

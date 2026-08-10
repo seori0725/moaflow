@@ -25,6 +25,7 @@ const permissions = {
     "analytics.read",
     "consultation.manage",
     "comment.manage",
+    "request.create",
     "csv.import",
     "audit.read"
   ],
@@ -36,9 +37,10 @@ const permissions = {
     "homework.manage",
     "test.manage",
     "analytics.read",
-    "comment.manage"
+    "comment.manage",
+    "request.create"
   ],
-  guardian: ["child.read", "connection.manage", "consent.manage"],
+  guardian: ["child.read", "connection.manage", "consent.manage", "request.create"],
   operator: ["pilot.read", "audit.read", "request.manage"]
 };
 
@@ -67,6 +69,7 @@ const initialState = {
   selectedStudentId: null,
   selectedHomeworkStudentId: null,
   selectedTestStudentId: null,
+  selectedStaffMemberId: null,
   analyticsClassName: null,
   studentSearch: "",
   studentClassFilter: "all",
@@ -81,6 +84,7 @@ const initialState = {
   guardianNotificationReads: [],
   guardianCommentReplies: [],
   academyCommentReplyReads: {},
+  privacyRightsRequests: [],
   consultationStudentId: null,
   consultationSearch: "",
   consultationClassFilter: "all",
@@ -440,7 +444,6 @@ const initialState = {
       id: "req-1",
       academyId: "acd-dodam",
       type: "error",
-      priority: "high",
       status: "in_progress",
       title: "출결 저장 후 일부 학생 상태가 늦게 반영됨",
       detail: "저장 직후 두 명의 상태가 이전 값으로 보여 새로고침 후 확인했습니다.",
@@ -462,7 +465,6 @@ const initialState = {
       id: "req-2",
       academyId: "acd-bridge",
       type: "inquiry",
-      priority: "normal",
       status: "open",
       title: "파일럿 시작 전 원생 CSV 형식 문의",
       detail: "기존 원생 파일의 반 이름을 그대로 사용할 수 있는지 확인이 필요합니다.",
@@ -477,7 +479,6 @@ const initialState = {
       id: "req-3",
       academyId: "acd-dodam",
       type: "inquiry",
-      priority: "low",
       status: "resolved",
       title: "학부모 초대 코드 유효시간 확인",
       detail: "초대 코드 재발급 기준을 문의했습니다.",
@@ -542,7 +543,8 @@ const navigation = {
     ["academy_comments", "학부모 소통"],
     ["students", "원생 관리"],
     ["academy", "학원 설정"],
-    ["audit", "활동 기록"]
+    ["audit", "활동 기록"],
+    ["support", "오류·문의"]
   ],
   academy_instructor: [
     ["home", "오늘 운영"],
@@ -553,13 +555,15 @@ const navigation = {
     ["analytics", "학습 분석"],
     ["academy_comments", "학부모 소통"],
     ["students", "원생 관리"],
-    ["permissions", "권한 확인"]
+    ["permissions", "권한 확인"],
+    ["support", "오류·문의"]
   ],
   guardian: [
     ["home", "통합 타임라인"],
     ["notifications", "알림"],
     ["growth", "성장 추이"],
     ["comments", "코멘트"],
+    ["support", "오류·문의"],
     ["data", "내 정보·동의"]
   ],
   operator: [
@@ -598,7 +602,8 @@ const ownerNavigationGroups = [
     label: "학원 설정",
     items: [
       ["academy", "학원 정보"],
-      ["audit", "활동 기록"]
+      ["audit", "활동 기록"],
+      ["support", "오류·문의"]
     ]
   }
 ];
@@ -649,6 +654,7 @@ function loadState() {
       selectedStudentId: null,
       selectedHomeworkStudentId: null,
       selectedTestStudentId: null,
+      selectedStaffMemberId: saved.selectedStaffMemberId || null,
       guardianTimelineStudentId: saved.guardianTimelineStudentId || "all",
       guardianTimelineAcademyId: saved.guardianTimelineAcademyId || "all",
       guardianGrowthStudentId: saved.guardianGrowthStudentId || null,
@@ -658,6 +664,7 @@ function loadState() {
       guardianNotificationReads: saved.guardianNotificationReads || [],
       guardianCommentReplies: saved.guardianCommentReplies || [],
       academyCommentReplyReads: saved.academyCommentReplyReads || {},
+      privacyRightsRequests: saved.privacyRightsRequests || [],
       consultationStudentId: saved.consultationStudentId || null,
       consultationSearch: saved.consultationSearch || "",
       consultationClassFilter: saved.consultationClassFilter || "all",
@@ -742,7 +749,7 @@ function loadState() {
       })),
       consultationRecords: mergeMissingById(saved.consultationRecords, initialState.consultationRecords),
       usageEvents: saved.usageEvents || clone(initialState.usageEvents),
-      supportRequests: mergeMissingById(saved.supportRequests, initialState.supportRequests).map((item) => ({
+      supportRequests: mergeMissingById(saved.supportRequests, initialState.supportRequests).map(({ priority: _legacyPriority, ...item }) => ({
         ...item,
         history: item.history || [],
         resolution: item.resolution || ""
@@ -848,6 +855,8 @@ function auditActionLabel(action) {
       "invitation.created": "보호자 초대 발급",
       "guardian_link.verified": "보호자 연결 완료",
       "staff.permission_changed": "구성원 권한 변경",
+      "staff.member_added": "구성원 추가",
+      "staff.member_removed": "구성원 제외",
       "privacy.rights_requested": "개인정보 요청 접수"
     }[action] || "기타 활동"
   );
@@ -1163,7 +1172,7 @@ function renderShell() {
     role === "academy_owner"
       ? renderGroupedNavigation(ownerNavigationGroups)
       : role === "academy_instructor"
-        ? renderGroupedNavigation(instructorNavigationGroups, [["permissions", "내 권한"]])
+        ? renderGroupedNavigation(instructorNavigationGroups, [["permissions", "내 권한"], ["support", "오류·문의"]])
       : allowedViews.map(([id, label]) => navigationItemMarkup(id, label)).join("");
 }
 
@@ -1221,19 +1230,17 @@ function renderHome(role) {
       .map((item) => item.studentId)
   );
   const connected = academyEnrollments.filter((item) => connectedStudentIds.has(item.studentId)).length;
-  const attendanceRate = Math.round((attendance.length / Math.max(activeEnrollments.length, 1)) * 100);
-
   return `
     <section class="grid four horizontal-metrics">
-      ${metricCard("오늘 수업", `${classNames.length}개 반`, "", false, true)}
-      ${metricCard("출결 처리율", `${attendanceRate}%`, `${attendance.length}/${activeEnrollments.length}명`, true)}
+      ${metricCard("오늘 수업", `${classNames.length}개 반`, "", false)}
+      ${metricCard("출결 처리율", `${attendance.length}/${activeEnrollments.length}`, "", true)}
       ${metricCard("학습기록", `${learning.length}/${classNames.length}`, "", false)}
       ${metricCard("보호자 연결", `${connected}/${academyEnrollments.length}`, "")}
     </section>
 
     <article class="panel">
       <div class="panel-head"><div><h2>반별 운영 현황</h2></div>${hasPermission("csv.import") ? '<button class="button secondary compact" data-action="open-csv-modal">CSV 가져오기</button>' : ""}</div>
-      <div class="table-wrap">
+      <div class="table-wrap record-scroll">
         <table class="data-table">
           <thead><tr><th>반</th><th>원생</th><th>출결</th><th>학습기록</th><th>과제</th><th>테스트</th><th>바로가기</th></tr></thead>
           <tbody>
@@ -1340,7 +1347,7 @@ function renderAttendance() {
             <button class="button secondary compact" type="button" data-action="bulk-attendance" data-status="early_leave">선택 조퇴</button>
           </div>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap record-scroll">
           <table class="data-table attendance-table">
             <thead><tr><th>선택</th><th>학생</th><th>현재 상태</th><th>등원 시각</th><th>출석 상태</th><th>사유·메모</th><th>수정 이력</th></tr></thead>
             <tbody>
@@ -1519,7 +1526,7 @@ function renderHomework() {
         <div class="form-grid homework-head-fields">
           <div class="full"><label for="homework-title">과제명</label><input id="homework-title" name="title" required value="${escapeHtml(existing?.title || latest?.title || "")}" placeholder="예: 유형 3번 1~10번 풀기" /></div>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap record-scroll">
           <table class="data-table phase-three-table homework-table">
             <colgroup>
               <col class="homework-col-selection" />
@@ -1669,7 +1676,7 @@ function renderTests() {
           <div><label for="test-max-score">만점</label><input id="test-max-score" name="max-score" type="number" min="1" required value="${assessment?.maxScore || 100}" /></div>
           <div class="full"><label for="test-scope">평가 범위</label><input id="test-scope" name="scope" required value="${escapeHtml(assessment?.scope || "")}" placeholder="예: 교재 3단원" /></div>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap record-scroll">
           <table class="data-table phase-three-table test-result-table">
             <thead><tr><th>학생</th><th>1차 상태</th><th>1차 점수</th><th>결시·관찰 메모</th><th>재시험 점수</th><th>시도</th></tr></thead>
             <tbody>
@@ -2038,8 +2045,8 @@ function renderConsultations() {
         </form>` : '<div class="empty-state">관리할 원생이 없습니다.</div>'}
       </article>
       <article class="panel">
-        <div class="panel-head"><div><h2>상담 이력</h2></div>${recordSearchControl("consultation-records", "상담 내용 검색")}</div>
-        <div class="consultation-list record-scroll" data-record-list="consultation-records">
+        <div class="panel-head consultation-history-head"><div><h2>상담 이력</h2></div>${recordSearchControl("consultation-records", "상담 내용 검색")}</div>
+        <div class="consultation-list" data-record-list="consultation-records">
           ${records.map((item) => `<div class="consultation-item" data-record-date="${escapeHtml(item.consultationDate)}" data-record-search="${escapeHtml(recordSearchText(item.consultationDate, consultationTypeLabel(item.type), item.nextAction, item.internalMemo, item.guardianSummary))}">
             <div><span>${item.consultationDate}</span><span class="badge ${item.guardianSummary ? "green" : "gray"}">${item.guardianSummary ? "공유 요약 있음" : "내부 기록"}</span></div>
             <strong>${escapeHtml(item.nextAction)}</strong>
@@ -2598,6 +2605,13 @@ function renderGuardianGrowthChart(snapshot, studentName) {
   const plotLeft = 104;
   const plotRight = 62;
   const xRange = plotWidth - plotLeft - plotRight;
+  const seriesItemIndexes = new Map();
+  const seriesItemCounts = new Map();
+  scores.forEach((item) => {
+    const seriesKey = `${item.academyId}::${item.subject}`;
+    seriesItemCounts.set(seriesKey, (seriesItemCounts.get(seriesKey) || 0) + 1);
+  });
+  const evaluationCount = Math.max(...seriesItemCounts.values(), 1);
   const scoreValues = scores.map((item) => item.percent);
   const minimumScore = scoreValues.length ? Math.min(...scoreValues) : 0;
   const maximumScore = scoreValues.length ? Math.max(...scoreValues) : 100;
@@ -2610,22 +2624,36 @@ function renderGuardianGrowthChart(snapshot, studentName) {
   const axisStep = axisMaximum - axisMinimum > 50 ? 20 : 10;
   const axisTicks = [];
   for (let value = axisMinimum; value <= axisMaximum; value += axisStep) axisTicks.push(value);
-  const chartPoints = scores.map((item, index) => ({
-    ...item,
-    x: scores.length === 1 ? plotLeft + xRange / 2 : plotLeft + (index / (scores.length - 1)) * xRange,
-    y: plotTop + ((axisMaximum - item.percent) / Math.max(axisMaximum - axisMinimum, 1)) * (plotBottom - plotTop),
-    seriesKey: `${item.academyId}::${item.subject}`,
-    seriesIndex: Math.max(allSeriesKeys.indexOf(`${item.academyId}::${item.subject}`), 0)
-  }));
+  const chartPoints = scores.map((item) => {
+    const seriesKey = `${item.academyId}::${item.subject}`;
+    const seriesItemIndex = seriesItemIndexes.get(seriesKey) || 0;
+    seriesItemIndexes.set(seriesKey, seriesItemIndex + 1);
+    return {
+      ...item,
+      x: evaluationCount === 1 ? plotLeft + xRange / 2 : plotLeft + (seriesItemIndex / (evaluationCount - 1)) * xRange,
+      y: plotTop + ((axisMaximum - item.percent) / Math.max(axisMaximum - axisMinimum, 1)) * (plotBottom - plotTop),
+      seriesKey,
+      seriesItemIndex,
+      seriesIndex: Math.max(allSeriesKeys.indexOf(seriesKey), 0)
+    };
+  });
   const chartSeries = [...new Set(chartPoints.map((item) => item.seriesKey))].map((seriesKey) => ({
     seriesKey,
     points: chartPoints.filter((item) => item.seriesKey === seriesKey)
   }));
-  const latestSeriesPointIds = new Set(chartSeries.map((series) => series.points.at(-1)?.id).filter(Boolean));
   const pointChanges = new Map();
   chartSeries.forEach((series) => series.points.forEach((item, index) => {
     if (index > 0) pointChanges.set(item.id, item.percent - series.points[index - 1].percent);
   }));
+  const seriesSummaries = chartSeries.map((series) => {
+    const firstPoint = series.points[0];
+    const lastPoint = series.points.at(-1);
+    return {
+      seriesIndex: firstPoint.seriesIndex,
+      label: `${academyById(firstPoint.academyId)?.name || "학원"} · ${firstPoint.subject}`,
+      change: lastPoint.percent - firstPoint.percent
+    };
+  });
   const description = selectedAcademyId === "all"
     ? "같은 학원·같은 과목 기록끼리 각각 선으로 연결합니다."
     : `${academyById(selectedAcademyId)?.name || "학원"}의 ${selectedSubject === "all" ? "평가" : selectedSubject} 기록만 연결합니다.`;
@@ -2659,9 +2687,20 @@ function renderGuardianGrowthChart(snapshot, studentName) {
           }).join("")}
         </div>
       ` : ""}
+      ${seriesSummaries.length ? `
+        <div class="growth-chart-summary" aria-label="첫 평가 대비 총 변화">
+          ${seriesSummaries.map((summary) => `
+            <span class="series-${summary.seriesIndex % 6}">
+              ${seriesSummaries.length > 1 ? `<i></i><small>${escapeHtml(summary.label)}</small>` : ""}
+              <small>첫 평가 대비</small>
+              <strong class="${summary.change > 0 ? "positive" : summary.change < 0 ? "negative" : "neutral"}">총 ${summary.change > 0 ? "+" : ""}${summary.change}점</strong>
+            </span>
+          `).join("")}
+        </div>
+      ` : ""}
       <div class="growth-chart ${selectedAcademyId === "all" ? "multi-line-chart" : "line-chart"}" aria-label="${escapeHtml(studentName || "자녀")} 평가 성장 그래프">
         ${chartPoints.length ? `
-          <svg viewBox="0 0 ${plotWidth} 210" role="img" aria-label="${selectedAcademyId === "all" ? "학원과 과목별 평가 다중 꺾은선그래프" : "선택 학원 평가 꺾은선그래프"}">
+          <svg viewBox="0 0 ${plotWidth} 232" role="img" aria-label="${selectedAcademyId === "all" ? "학원과 과목별 평가 다중 꺾은선그래프" : "선택 학원 평가 꺾은선그래프"}">
             ${axisTicks.map((value) => {
               const y = plotTop + ((axisMaximum - value) / Math.max(axisMaximum - axisMinimum, 1)) * (plotBottom - plotTop);
               return `<line class="growth-grid-line" x1="${gridLeft}" y1="${y}" x2="${gridRight}" y2="${y}"></line><text class="growth-axis-value" x="${gridLeft - 12}" y="${y + 4}">${value}</text>`;
@@ -2669,14 +2708,30 @@ function renderGuardianGrowthChart(snapshot, studentName) {
             ${chartSeries.map((series) => series.points.length > 1
               ? `<polyline class="growth-chart-line series-${series.points[0].seriesIndex % 6}" points="${series.points.map((item) => `${item.x},${item.y}`).join(" ")}"></polyline>`
               : "").join("")}
+            ${Array.from({ length: evaluationCount }, (_, index) => {
+              const x = evaluationCount === 1 ? plotLeft + xRange / 2 : plotLeft + (index / (evaluationCount - 1)) * xRange;
+              const testDate = chartSeries.length === 1 ? chartSeries[0].points[index]?.testDate : "";
+              const formattedTestDate = testDate
+                ? testDate.slice(5).split("-").map(Number).join("/")
+                : "";
+              return `
+                <text class="growth-point-date" x="${x}" y="202">
+                  <tspan x="${x}">${index + 1}차 평가</tspan>
+                  ${formattedTestDate ? `<tspan class="growth-point-test-date" x="${x}" dy="15">${formattedTestDate}</tspan>` : ""}
+                </text>
+              `;
+            }).join("")}
             ${chartPoints.map((item) => `
-              <g class="growth-chart-point ${latestSeriesPointIds.has(item.id) ? "latest" : ""} series-${item.seriesIndex % 6}">
+              <g class="growth-chart-point series-${item.seriesIndex % 6}">
                 <title>${escapeHtml(academyById(item.academyId)?.name || "학원")} · ${escapeHtml(item.subject)} · ${item.testDate} · ${item.percent}점</title>
-                <circle cx="${item.x}" cy="${item.y}" r="7"></circle>
-                ${latestSeriesPointIds.has(item.id) ? `<circle class="growth-latest-ring" cx="${item.x}" cy="${item.y}" r="12"></circle>` : ""}
+                <circle cx="${item.x}" cy="${item.y}" r="6"></circle>
                 <text class="growth-point-score" x="${item.x}" y="${item.y - 13}">${item.percent}</text>
-                ${pointChanges.has(item.id) ? `<text class="growth-point-change ${pointChanges.get(item.id) >= 0 ? "positive" : "negative"}" x="${item.x}" y="${item.y + 19}">${pointChanges.get(item.id) > 0 ? "+" : ""}${pointChanges.get(item.id)}</text>` : ""}
-                <text class="growth-point-date" x="${item.x}" y="194">${item.testDate.slice(5).replace("-", ".")}</text>
+                ${chartSeries.length === 1 && pointChanges.has(item.id) ? `
+                  <g class="growth-point-change ${pointChanges.get(item.id) >= 0 ? "positive" : "negative"}" transform="translate(${item.x - 48} ${Math.min(item.y + 17, 170)})">
+                    <rect width="96" height="20" rx="10"></rect>
+                    <text x="48" y="14">직전 대비 ${pointChanges.get(item.id) > 0 ? "+" : ""}${pointChanges.get(item.id)}점</text>
+                  </g>
+                ` : ""}
               </g>
             `).join("")}
           </svg>
@@ -2753,10 +2808,10 @@ function renderGuardianGrowth() {
   return `
     <article class="panel national-education-panel">
       <div class="panel-head national-education-head">
-        <div><h2>국가 교육지표</h2></div>
+        <div><h2>국가 학업성취도 참고지표</h2></div>
         <span class="badge gray">2025년</span>
       </div>
-      <div class="national-grade-tabs" role="tablist" aria-label="국가 교육지표 학년 선택">
+      <div class="national-grade-tabs" role="tablist" aria-label="국가 학업성취도 참고지표 학년 선택">
         ${Object.entries(nationalAchievement2025).map(([gradeId, grade]) => `
           <button type="button" role="tab" class="${gradeId === nationalGradeId ? "active" : ""}" aria-selected="${gradeId === nationalGradeId}" data-action="select-national-grade" data-grade="${gradeId}">${grade.label}</button>
         `).join("")}
@@ -2806,8 +2861,8 @@ function renderGuardianGrowth() {
           <div class="subsection-head"><h3>MoaFlow 학습 비교</h3><span class="badge green">${escapeHtml(benchmark.grade)} · ${escapeHtml(benchmark.subject)}</span></div>
           <div class="grid four horizontal-metrics moaflow-benchmark-metrics">
             ${metricCard("비교 학생", `${benchmark.cohortSize}명`, `${benchmark.sampleMinimum}명 이상부터 제공`, false, true)}
-            ${metricCard("MoaFlow 평균", benchmark.average === null ? "표본 부족" : `${benchmark.average}점`, "동일 학년·과목", false, true)}
-            ${metricCard("MoaFlow 상위", benchmark.topPercent === null ? "표본 부족" : `${benchmark.topPercent}%`, "동일 학년·과목", false, true)}
+            ${metricCard("평균", benchmark.average === null ? "표본 부족" : `${benchmark.average}점`, "동일 학년·과목", false, true)}
+            ${metricCard("상위", benchmark.topPercent === null ? "표본 부족" : `${benchmark.topPercent}%`, "동일 학년·과목", false, true)}
             ${metricCard("비교 기준", "최근 평가", "학생별 최신 성취도", false, true)}
           </div>
         </section>
@@ -3010,7 +3065,7 @@ function renderOperatorUsage() {
           </select>
         </div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap record-scroll">
         <table class="data-table usage-table">
           <thead><tr><th>학원</th><th>학습분석</th><th>성장추이</th><th>재방문</th><th>기능 탐색</th><th>최근 사용</th><th>상태</th></tr></thead>
           <tbody>
@@ -3182,13 +3237,6 @@ function renderOperatorHome() {
   const active = state.academies.filter((item) => item.pilotStatus === "active").length;
 
   return `
-    <section class="hero-panel">
-      <div>
-        <p class="eyebrow eyebrow-accent">PILOT OPERATIONS</p>
-        <h2>파일럿 운영 상태와 사용 전환을 확인합니다</h2>
-      </div>
-      <div class="hero-progress"><strong>${active}</strong><span>활성 학원</span></div>
-    </section>
     <section class="grid four horizontal-metrics">
       ${metricCard("운영 중", active, `전체 ${state.academies.length}곳`)}
       ${metricCard("출결 입력률", `${summary.attendanceRate}%`, `${range.days}일 재원 원생 기준`, true)}
@@ -3207,7 +3255,7 @@ function renderOperatorHome() {
           <button class="button tertiary compact" data-view-target="pilots">파일럿 관리</button>
         </div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap record-scroll">
         <table class="data-table">
           <thead><tr><th>학원</th><th>전환 단계</th><th>출결 입력률</th><th>학습 입력률</th><th>조회율</th><th>미처리</th><th>파일럿</th></tr></thead>
           <tbody>
@@ -3407,7 +3455,7 @@ function renderStudents() {
         </div>
         ${canManage ? '<div class="row-actions"><button class="button secondary compact" data-action="open-csv-modal">CSV 가져오기</button><button class="button primary compact" data-action="open-student-modal">원생 등록</button></div>' : ""}
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap record-scroll">
         <table class="data-table student-table">
           <colgroup>
             <col class="col-student" />
@@ -3633,7 +3681,7 @@ function renderStudentDetail(studentId) {
           classHistory.length
             ? `<section class="class-history-section">
                 <h3>반 변경 이력</h3>
-                <div class="class-history-list">${classHistory
+                <div class="class-history-list record-scroll">${classHistory
                   .map(
                     (item) => `<div class="class-history-item">
                       <span>${formatDate(item.changedAt)}</span>
@@ -3802,8 +3850,9 @@ function renderPermissions() {
 
 function renderPermissionsContent(isOwner) {
   const members = state.staffMemberships
-    .filter((item) => item.academyId === currentAcademy().id)
-    .map((item) => ({ ...item, user: userById(item.userId) }));
+    .filter((item) => item.academyId === currentAcademy().id && item.status === "active")
+    .map((item) => ({ ...item, user: userById(item.userId) }))
+    .filter((item) => item.user);
   const permissionRows = [
     ["academy.manage", "학원 정보 관리", "학원 기본정보 수정"],
     ["student.manage", "원생 관리", "원생 등록·수정"],
@@ -3818,13 +3867,16 @@ function renderPermissionsContent(isOwner) {
     ["permission.manage", "권한 관리", "구성원 위임"],
     ["audit.read", "활동 기록", "변경 내역 조회"]
   ];
-  const instructor = members.find((item) => item.role === "academy_instructor");
+  const instructors = members.filter((item) => item.role === "academy_instructor");
+  const instructor = isOwner
+    ? instructors.find((item) => item.id === state.selectedStaffMemberId) || instructors[0]
+    : instructors.find((item) => item.userId === currentUser().id);
   const instructorName = instructor?.user?.name || "강사";
   return `
     <section class="grid two">
       <article class="panel">
-        <div class="panel-head"><div><h2>학원 구성원</h2></div></div>
-        <div class="card-list">
+        <div class="panel-head"><div><h2>학원 구성원</h2><p>강사 계정과 담당 반을 관리합니다.</p></div>${isOwner && hasPermission("member.manage") ? '<button class="button secondary compact" data-action="open-staff-member-modal">구성원 추가</button>' : ""}</div>
+        <div class="card-list record-scroll">
           ${members
             .map((member) => {
               const assignedClasses = state.staffClassAssignments
@@ -3838,7 +3890,10 @@ function renderPermissionsContent(isOwner) {
                 <div class="list-card staff-member-card">
                   <span class="staff-role-label ${member.role === "academy_owner" ? "owner" : "instructor"}">${roleMeta[member.role].label}</span>
                   <div class="staff-member-info">
-                    <strong>${escapeHtml(member.user.name)}</strong>
+                    <div class="staff-name-actions">
+                      <strong>${escapeHtml(member.user.name)}</strong>
+                      ${isOwner && member.role === "academy_instructor" ? `<button class="button tertiary compact staff-delete-button" data-action="open-remove-staff-member" data-membership-id="${member.id}">삭제</button>` : ""}
+                    </div>
                     <span class="staff-phone">${maskPhone(member.user.phone)}</span>
                     <div class="staff-assignments">
                       <small>담당 반</small>
@@ -3857,8 +3912,8 @@ function renderPermissionsContent(isOwner) {
         </div>
       </article>
       <article class="panel">
-        <div class="panel-head"><div><h2>권한 설정</h2></div></div>
-        <div class="permission-grid">
+        <div class="panel-head"><div><h2>권한 설정</h2><p>${isOwner ? "강사별 권한을 선택해 관리합니다." : "현재 계정에 허용된 권한입니다."}</p></div>${isOwner && instructors.length > 1 ? `<select id="permission-member-select" aria-label="권한을 설정할 강사">${instructors.map((item) => `<option value="${item.id}" ${item.id === instructor?.id ? "selected" : ""}>${escapeHtml(item.user.name)}</option>`).join("")}</select>` : ""}</div>
+        ${instructor ? `<div class="permission-grid">
           <div class="permission-row header"><span>권한</span><span>원장</span><span>${isOwner ? escapeHtml(instructorName) : "내 권한"}</span></div>
           ${permissionRows
             .map(([key, label, detail]) => {
@@ -3870,13 +3925,13 @@ function renderPermissionsContent(isOwner) {
                   <span class="permission-state allowed">항상 허용</span>
                   ${
                     isOwner
-                      ? `<button class="switch ${instructorAllowed ? "on" : ""}" data-action="toggle-permission" data-permission="${key}" aria-label="${label} ${instructorAllowed ? "회수" : "부여"}"></button>`
+                      ? `<button class="switch ${instructorAllowed ? "on" : ""}" data-action="toggle-permission" data-membership-id="${instructor.id}" data-permission="${key}" aria-label="${escapeHtml(instructorName)} ${label} ${instructorAllowed ? "회수" : "부여"}"></button>`
                       : `<span class="permission-state ${myAllowed ? "allowed" : "denied"}">${myAllowed ? "허용" : "제한"}</span>`
                   }
                 </div>`;
             })
             .join("")}
-        </div>
+        </div>` : '<div class="empty-state compact-empty">강사를 추가하면 권한을 설정할 수 있습니다.</div>'}
       </article>
     </section>
   `;
@@ -3930,7 +3985,7 @@ function renderPilots() {
           </select>
         </div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap record-scroll">
         <table class="data-table">
           <thead><tr><th>학원</th><th>연락처</th><th>등록일</th><th>원생</th><th>파일럿 상태</th><th>변경</th><th>학원 정보</th></tr></thead>
           <tbody>
@@ -4023,11 +4078,14 @@ function showAcademyInfo(academyId) {
 }
 
 function supportTypeLabel(type) {
-  return type === "error" ? "오류" : "문의";
-}
-
-function supportPriorityLabel(priority) {
-  return ({ high: "긴급", normal: "일반", low: "낮음" })[priority] || "일반";
+  return (
+    {
+      error: "서비스 오류",
+      inquiry: "사용 문의",
+      suggestion: "기능 제안",
+      other: "기타"
+    }[type] || "기타"
+  );
 }
 
 function supportStatusLabel(status) {
@@ -4046,44 +4104,73 @@ function supportStatusTone(status) {
   return "orange";
 }
 
+function supportAcademiesForCurrentUser() {
+  if (currentRole() === "academy_owner" || currentRole() === "academy_instructor") {
+    return [currentAcademy()].filter(Boolean);
+  }
+  if (currentRole() === "guardian") {
+    const academyIds = [
+      ...new Set(
+        state.guardianLinks
+          .filter((item) => item.guardianUserId === currentUser().id && item.status === "verified")
+          .map((item) => item.academyId)
+          .filter(Boolean)
+      )
+    ];
+    return academyIds.map(academyById).filter(Boolean);
+  }
+  return [];
+}
+
 function renderSupport() {
   setPage("SUPPORT", "오류·문의");
+  const isOperator = currentRole() === "operator";
   const statusFilter = state.operatorSupportStatusFilter || "all";
   const typeFilter = state.operatorSupportTypeFilter || "all";
-  const requests = state.supportRequests
+  const academy = currentAcademy();
+  const scopedRequests = isOperator
+    ? state.supportRequests
+    : currentRole() === "academy_owner"
+      ? state.supportRequests.filter((item) => item.academyId === academy?.id)
+      : state.supportRequests.filter((item) => item.reporterUserId === currentUser().id);
+  const requests = scopedRequests
     .filter(
       (item) =>
-        (statusFilter === "all" || item.status === statusFilter) &&
-        (typeFilter === "all" || item.type === typeFilter)
+        !isOperator ||
+        ((statusFilter === "all" || item.status === statusFilter) &&
+          (typeFilter === "all" || item.type === typeFilter))
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const supportAcademies = supportAcademiesForCurrentUser();
+  const canCreate = hasPermission("request.create") && supportAcademies.length > 0;
+  const academyField = supportAcademies.length > 1
+    ? `<label>문의 학원
+        <select id="support-academy" required>
+          ${supportAcademies.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}
+        </select>
+      </label>`
+    : supportAcademies.length === 1
+      ? `<input id="support-academy" type="hidden" value="${supportAcademies[0].id}">`
+      : "";
   return `
     <section class="grid four horizontal-metrics">
-      ${metricCard("전체 접수", state.supportRequests.length, "")}
-      ${metricCard("신규", state.supportRequests.filter((item) => item.status === "open").length, "")}
-      ${metricCard("처리 중", state.supportRequests.filter((item) => item.status === "in_progress").length, "", true)}
-      ${metricCard("완료", state.supportRequests.filter((item) => item.status === "resolved").length, "")}
+      ${metricCard("전체 접수", scopedRequests.length, "")}
+      ${metricCard("신규", scopedRequests.filter((item) => item.status === "open").length, "")}
+      ${metricCard("처리 중", scopedRequests.filter((item) => item.status === "in_progress").length, "", true)}
+      ${metricCard("완료", scopedRequests.filter((item) => item.status === "resolved").length, "")}
     </section>
-    <section class="support-layout">
-      <article class="panel">
-        <div class="panel-head"><div><h2>새 접수 등록</h2></div></div>
-        <form id="support-create-form" class="form-grid">
-          <label>학원
-            <select id="support-academy" required>
-              ${state.academies.map((academy) => `<option value="${academy.id}">${escapeHtml(academy.name)}</option>`).join("")}
-            </select>
-          </label>
-          <label>구분
+    <section class="${isOperator ? "" : "support-layout"}">
+      ${isOperator ? "" : `
+        <article class="panel">
+          <div class="panel-head"><div><h2>새 문의 등록</h2><p>오류나 이용 문의를 등록하면 운영자가 확인 후 답변합니다.</p></div></div>
+          ${canCreate ? `<form id="support-create-form" class="form-grid">
+          ${academyField}
+          <label>문의 유형
             <select id="support-type" required>
-              <option value="error">오류</option>
-              <option value="inquiry">문의</option>
-            </select>
-          </label>
-          <label>우선순위
-            <select id="support-priority" required>
-              <option value="normal">일반</option>
-              <option value="high">긴급</option>
-              <option value="low">낮음</option>
+              <option value="error">서비스 오류</option>
+              <option value="inquiry">사용 문의</option>
+              <option value="suggestion">기능 제안</option>
+              <option value="other">기타</option>
             </select>
           </label>
           <label class="full">제목
@@ -4093,16 +4180,19 @@ function renderSupport() {
             <textarea id="support-detail" rows="4" maxlength="500" required></textarea>
           </label>
           <div class="form-actions full"><button class="button primary" type="submit">접수 등록</button></div>
-        </form>
-      </article>
+          </form>` : '<div class="empty-state compact-empty">연결된 학원이 없어 문의를 등록할 수 없습니다.</div>'}
+        </article>
+      `}
       <article class="panel support-list-panel">
         <div class="panel-head">
-          <div><h2>처리 목록</h2></div>
-          <div class="compact-filters">
-            <select id="operator-support-type-filter" aria-label="오류 문의 구분 필터">
-              <option value="all" ${typeFilter === "all" ? "selected" : ""}>전체 구분</option>
-              <option value="error" ${typeFilter === "error" ? "selected" : ""}>오류</option>
-              <option value="inquiry" ${typeFilter === "inquiry" ? "selected" : ""}>문의</option>
+          <div><h2>${isOperator ? "처리 목록" : currentRole() === "academy_owner" ? "학원 요청 내역" : "내 요청 내역"}</h2></div>
+          ${isOperator ? `<div class="compact-filters">
+            <select id="operator-support-type-filter" aria-label="문의 유형 필터">
+              <option value="all" ${typeFilter === "all" ? "selected" : ""}>전체 유형</option>
+              <option value="error" ${typeFilter === "error" ? "selected" : ""}>서비스 오류</option>
+              <option value="inquiry" ${typeFilter === "inquiry" ? "selected" : ""}>사용 문의</option>
+              <option value="suggestion" ${typeFilter === "suggestion" ? "selected" : ""}>기능 제안</option>
+              <option value="other" ${typeFilter === "other" ? "selected" : ""}>기타</option>
             </select>
             <select id="operator-support-status-filter" aria-label="처리 상태 필터">
               <option value="all" ${statusFilter === "all" ? "selected" : ""}>전체 상태</option>
@@ -4110,15 +4200,14 @@ function renderSupport() {
               <option value="in_progress" ${statusFilter === "in_progress" ? "selected" : ""}>처리 중</option>
               <option value="resolved" ${statusFilter === "resolved" ? "selected" : ""}>완료</option>
             </select>
-          </div>
+          </div>` : ""}
         </div>
-        <div class="support-list">
+        <div class="support-list record-scroll">
           ${requests.length ? requests.map((item) => `
-            <article class="support-card ${item.priority === "high" ? "urgent" : ""}">
+            <article class="support-card">
               <header>
                 <div>
                   <span class="badge ${item.type === "error" ? "orange" : "gray"}">${supportTypeLabel(item.type)}</span>
-                  <span class="badge ${item.priority === "high" ? "orange" : "gray"}">${supportPriorityLabel(item.priority)}</span>
                   <span class="badge ${supportStatusTone(item.status)}">${supportStatusLabel(item.status)}</span>
                   <strong>${escapeHtml(item.title)}</strong>
                 </div>
@@ -4126,16 +4215,16 @@ function renderSupport() {
               </header>
               <p>${escapeHtml(item.detail)}</p>
               <small>${escapeHtml(academyById(item.academyId)?.name || "학원")} · ${escapeHtml(item.reporterName)}</small>
-              <div class="support-update-row">
+              ${isOperator ? `<div class="support-update-row">
                 <select data-support-status="${item.id}" aria-label="${escapeHtml(item.title)} 처리 상태">
                   ${["open", "in_progress", "resolved"].map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${supportStatusLabel(status)}</option>`).join("")}
                 </select>
                 <input data-support-note="${item.id}" value="${escapeHtml(item.resolution)}" placeholder="처리 내용">
                 <button class="button tertiary compact" data-action="save-support-request" data-request-id="${item.id}">저장</button>
-              </div>
+              </div>` : `<div class="support-response ${item.resolution ? "answered" : ""}"><strong>운영자 답변</strong><span>${escapeHtml(item.resolution || "답변을 기다리고 있습니다.")}</span></div>`}
               ${item.history.length ? `<details><summary>처리 이력 ${item.history.length}건</summary><div class="support-history">${item.history.map((history) => `<span><strong>${supportStatusLabel(history.status)}</strong>${escapeHtml(history.note)} · ${formatDateTime(history.updatedAt)}</span>`).join("")}</div></details>` : ""}
             </article>
-          `).join("") : '<div class="empty-state">선택한 조건의 접수 내역이 없습니다.</div>'}
+          `).join("") : `<div class="empty-state">${isOperator ? "선택한 조건의 접수 내역이 없습니다." : "등록된 오류·문의가 없습니다."}</div>`}
         </div>
       </article>
     </section>
@@ -4165,7 +4254,7 @@ function renderData() {
     ["guardian_comment_replies", state.guardianCommentReplies.length, ["consultation_id · academy_id · student_id", "author_user_id · author_role", "body · created_at"]],
     ["academy_comment_reply_reads", Object.values(state.academyCommentReplyReads).reduce((sum, items) => sum + items.length, 0), ["user_id", "reply_ids", "per-user unread state"]],
     ["usage_events", state.usageEvents.length, ["academy_id · user_id", "type", "created_at"]],
-    ["support_requests", state.supportRequests.length, ["academy_id · type · priority", "status · resolution", "history · updated_at"]],
+    ["support_requests", state.supportRequests.length, ["academy_id · type", "status · resolution", "history · updated_at"]],
     ["audit_logs", state.auditLogs.length, ["academy_id", "actor_user_id", "action · target · created_at"]]
   ];
   return `
@@ -4190,6 +4279,28 @@ function renderData() {
   `;
 }
 
+function privacyRightTypeLabel(type) {
+  return (
+    {
+      access: "열람",
+      correction: "정정",
+      deletion: "삭제",
+      restriction: "처리 정지",
+      withdrawal: "동의 철회"
+    }[type] || "기타"
+  );
+}
+
+function privacyRightStatusLabel(status) {
+  return ({ received: "접수", reviewing: "검토 중", completed: "처리 완료" })[status] || "접수";
+}
+
+function privacyRightStatusTone(status) {
+  if (status === "completed") return "green";
+  if (status === "reviewing") return "blue";
+  return "orange";
+}
+
 function renderGuardianData() {
   setPage("PRIVACY & CONSENT", "내 정보·동의");
   const userConsents = state.consents.filter((item) => item.guardianUserId === currentUser().id);
@@ -4198,6 +4309,9 @@ function renderGuardianData() {
   );
   const linkedChildren = new Set(userLinks.map((item) => item.studentId)).size;
   const grantedConsents = userConsents.filter((item) => item.status === "granted").length;
+  const privacyRequests = (state.privacyRightsRequests || [])
+    .filter((item) => item.requesterUserId === currentUser().id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return `
     <section class="guardian-summary-strip">
       <span class="badge green">연결 자녀 ${linkedChildren}명</span>
@@ -4224,7 +4338,7 @@ function renderGuardianData() {
         </section>
         <section class="panel-subsection">
           <h3 class="panel-subsection-title">자녀 연결 동의 이력</h3>
-          <div class="card-list">
+          <div class="card-list record-scroll">
             ${
               userConsents.length
                 ? userConsents
@@ -4239,8 +4353,42 @@ function renderGuardianData() {
         </section>
       </article>
     </section>
-    <article class="panel">
-      <div class="panel-head"><div><h2>권리 요청</h2></div><button class="button tertiary compact" data-action="request-rights">권리 요청 접수</button></div>
+    <article class="panel privacy-rights-panel">
+      <div class="panel-head">
+        <div>
+          <h2>개인정보 권리 요청</h2>
+          <p>본인 및 연결된 자녀의 개인정보에 대해 필요한 조치를 요청할 수 있습니다.</p>
+        </div>
+        <button class="button tertiary compact" data-action="request-rights">권리 요청하기</button>
+      </div>
+      <div class="privacy-rights-guide">
+        <p>개인정보의 열람, 정정, 삭제, 처리 정지 또는 동의 철회를 요청하면 운영자가 본인 확인과 처리 가능 여부를 검토한 뒤 결과를 안내합니다.</p>
+        <div class="privacy-rights-types" aria-label="요청 가능한 개인정보 권리">
+          <span>열람</span><span>정정</span><span>삭제</span><span>처리 정지</span><span>동의 철회</span>
+        </div>
+        <div class="notice">관련 법령에 따라 보관 의무가 있는 정보는 삭제 또는 처리 정지가 제한될 수 있습니다.</div>
+      </div>
+      <section class="panel-subsection privacy-rights-history">
+        <h3 class="panel-subsection-title">요청 내역</h3>
+        <div class="card-list record-scroll">
+          ${privacyRequests.length
+            ? privacyRequests.map((request) => {
+                const target = request.studentId ? `${studentById(request.studentId)?.name || "자녀"} 학생` : "본인";
+                return `
+                  <div class="list-card privacy-rights-request-card">
+                    <div class="activity-icon">권리</div>
+                    <div>
+                      <strong>${privacyRightTypeLabel(request.type)} 요청</strong>
+                      <small>${escapeHtml(target)} · ${formatDateTime(request.createdAt)} · ${maskPhone(request.contact)}</small>
+                      <p>${escapeHtml(request.detail)}</p>
+                    </div>
+                    <span class="badge ${privacyRightStatusTone(request.status)}">${privacyRightStatusLabel(request.status)}</span>
+                  </div>
+                `;
+              }).join("")
+            : '<div class="empty-state compact-empty">접수된 개인정보 권리 요청이 없습니다.</div>'}
+        </div>
+      </section>
     </article>
   `;
 }
@@ -5141,12 +5289,148 @@ function showInvitation(studentId) {
     </div>`);
 }
 
-function togglePermission(permission) {
+function openStaffMemberModal() {
+  if (!hasPermission("member.manage")) {
+    toast("구성원을 추가할 권한이 없습니다.", "error");
+    return;
+  }
+  const classes = academyClassNames();
+  openModal(`
+    <header><div><h2 id="modal-title">구성원 추가</h2><p>강사 계정과 담당 반을 한 번에 등록합니다.</p></div><button class="icon-button" data-action="close-modal" aria-label="닫기">×</button></header>
+    <form id="staff-member-form">
+      <div class="form-grid">
+        <label>이름<input id="staff-member-name" required maxlength="30" placeholder="예: 이지현"></label>
+        <label>휴대전화<input id="staff-member-phone" type="tel" required placeholder="010-0000-0000"></label>
+        <div class="full"><span class="form-label">담당 반</span>
+          <div class="staff-class-options">
+            ${classes.length
+              ? classes.map((className) => `<label><input type="checkbox" name="staff-classes" value="${escapeHtml(className)}"><span>${escapeHtml(className)}</span></label>`).join("")
+              : '<span class="field-hint">등록된 반이 없어 구성원을 먼저 추가한 뒤 담당 반을 배정할 수 있습니다.</span>'}
+          </div>
+        </div>
+      </div>
+      <div class="notice">추가된 구성원은 강사 계정으로 등록되며, 필요한 권한은 구성원별로 설정할 수 있습니다.</div>
+      <div class="form-actions"><button type="button" class="button tertiary" data-action="close-modal">취소</button><button class="button primary" type="submit">구성원 추가</button></div>
+    </form>
+  `);
+}
+
+function createStaffMember(event) {
+  event.preventDefault();
+  if (!hasPermission("member.manage")) return;
+  const name = document.querySelector("#staff-member-name")?.value.trim();
+  const phone = document.querySelector("#staff-member-phone")?.value.trim();
+  const classNames = [...document.querySelectorAll('input[name="staff-classes"]:checked')].map((item) => item.value);
+  if (!name || !/^010-\d{4}-\d{4}$/.test(phone || "")) {
+    toast("이름과 휴대전화 번호를 확인해 주세요.", "error");
+    return;
+  }
+  const academy = currentAcademy();
+  let user = state.users.find((item) => item.phone === phone);
+  if (user && user.role !== "academy_instructor") {
+    toast("다른 역할로 사용 중인 휴대전화 번호입니다.", "error");
+    return;
+  }
+  let membership = user
+    ? state.staffMemberships.find((item) => item.academyId === academy.id && item.userId === user.id)
+    : null;
+  if (membership?.status === "active") {
+    toast("이미 등록된 학원 구성원입니다.", "error");
+    return;
+  }
+  if (!user) {
+    user = {
+      id: `usr-staff-${Date.now()}`,
+      name,
+      phone,
+      role: "academy_instructor",
+      status: "active"
+    };
+    state.users.push(user);
+  } else {
+    user.name = name;
+    user.status = "active";
+  }
+  if (membership) {
+    membership.status = "active";
+    membership.grants = [];
+    delete membership.endedAt;
+  } else {
+    membership = {
+      id: `stm-${Date.now()}`,
+      academyId: academy.id,
+      userId: user.id,
+      role: "academy_instructor",
+      grants: [],
+      status: "active"
+    };
+    state.staffMemberships.push(membership);
+  }
+  state.staffClassAssignments = state.staffClassAssignments.filter(
+    (item) => !(item.academyId === academy.id && item.userId === user.id)
+  );
+  classNames.forEach((className, index) => state.staffClassAssignments.push({
+    id: `sca-${Date.now()}-${index}`,
+    academyId: academy.id,
+    userId: user.id,
+    className
+  }));
+  state.selectedStaffMemberId = membership.id;
+  addAudit("staff.member_added", "staff_membership", membership.id, `${name} 강사 구성원 추가`, academy.id);
+  persistState();
+  closeModal();
+  renderView();
+  toast(`${name} 강사를 학원 구성원으로 추가했습니다.`);
+}
+
+function openRemoveStaffMember(membershipId) {
+  if (!hasPermission("member.manage")) return;
+  const membership = state.staffMemberships.find(
+    (item) => item.id === membershipId && item.academyId === currentAcademy().id && item.role === "academy_instructor" && item.status === "active"
+  );
+  if (!membership) return;
+  const user = userById(membership.userId);
+  const classCount = state.staffClassAssignments.filter(
+    (item) => item.academyId === currentAcademy().id && item.userId === membership.userId
+  ).length;
+  openModal(`
+    <header><div><h2 id="modal-title">구성원 제외</h2><p>${escapeHtml(user?.name || "강사")} 강사의 학원 접근을 종료합니다.</p></div><button class="icon-button" data-action="close-modal" aria-label="닫기">×</button></header>
+    <div class="notice">담당 반 ${classCount}개와 부여된 권한이 해제됩니다. 계정과 감사 이력은 안전하게 보존됩니다.</div>
+    <div class="form-actions"><button class="button tertiary" data-action="close-modal">취소</button><button class="button danger" data-action="confirm-remove-staff-member" data-membership-id="${membership.id}">구성원 제외</button></div>
+  `);
+}
+
+function removeStaffMember(membershipId) {
+  if (!hasPermission("member.manage")) return;
+  const academy = currentAcademy();
+  const membership = state.staffMemberships.find(
+    (item) => item.id === membershipId && item.academyId === academy.id && item.role === "academy_instructor" && item.status === "active"
+  );
+  if (!membership) return;
+  const user = userById(membership.userId);
+  membership.status = "inactive";
+  membership.grants = [];
+  membership.endedAt = new Date().toISOString();
+  state.staffClassAssignments = state.staffClassAssignments.filter(
+    (item) => !(item.academyId === academy.id && item.userId === membership.userId)
+  );
+  if (state.selectedStaffMemberId === membership.id) state.selectedStaffMemberId = null;
+  addAudit("staff.member_removed", "staff_membership", membership.id, `${user?.name || "강사"} 구성원 제외`, academy.id);
+  persistState();
+  closeModal();
+  renderView();
+  toast(`${user?.name || "강사"} 강사를 학원 구성원에서 제외했습니다.`);
+}
+
+function togglePermission(permission, membershipId) {
   if (!hasPermission("permission.manage")) {
     toast("권한을 변경할 수 없습니다.", "error");
     return;
   }
-  const membership = state.staffMemberships.find((item) => item.role === "academy_instructor" && item.academyId === currentAcademy().id);
+  const membership = state.staffMemberships.find(
+    (item) => item.id === membershipId && item.role === "academy_instructor" && item.academyId === currentAcademy().id && item.status === "active"
+  );
+  if (!membership) return;
   const instructorName = userById(membership.userId)?.name || "강사";
   const hasGrant = membership.grants.includes(permission);
   membership.grants = hasGrant ? membership.grants.filter((item) => item !== permission) : [...membership.grants, permission];
@@ -5283,11 +5567,83 @@ function connectGuardian(event) {
   );
 }
 
-function requestRights() {
-  addAudit("privacy.rights_requested", "user", currentUser().id, `${currentUser().name} 개인정보 권리 요청 접수`);
+function openPrivacyRightsModal() {
+  const linkedStudentIds = [
+    ...new Set(
+      state.guardianLinks
+        .filter((item) => item.guardianUserId === currentUser().id && item.status === "verified")
+        .map((item) => item.studentId)
+    )
+  ];
+  openModal(`
+    <header><div><h2 id="modal-title">개인정보 권리 요청</h2><p>요청 내용을 확인한 뒤 운영자가 처리 결과를 안내합니다.</p></div><button class="icon-button" data-action="close-modal" aria-label="닫기">×</button></header>
+    <form id="privacy-rights-form">
+      <div class="form-grid">
+        <label>요청 대상
+          <select id="privacy-rights-target" required>
+            <option value="self">본인 (${escapeHtml(currentUser().name)})</option>
+            ${linkedStudentIds.map((studentId) => `<option value="${studentId}">자녀 (${escapeHtml(studentById(studentId)?.name || "학생")})</option>`).join("")}
+          </select>
+        </label>
+        <label>요청 유형
+          <select id="privacy-rights-type" required>
+            <option value="access">열람</option>
+            <option value="correction">정정</option>
+            <option value="deletion">삭제</option>
+            <option value="restriction">처리 정지</option>
+            <option value="withdrawal">동의 철회</option>
+          </select>
+        </label>
+        <label class="full">요청 사유 및 상세 내용
+          <textarea id="privacy-rights-detail" required maxlength="500" placeholder="확인이 필요한 정보와 요청 내용을 구체적으로 입력해 주세요."></textarea>
+        </label>
+        <label class="full">처리 결과를 받을 연락처
+          <input id="privacy-rights-contact" type="tel" required value="${escapeHtml(currentUser().phone || "")}" placeholder="010-0000-0000" />
+        </label>
+      </div>
+      <div class="notice">관련 법령에 따른 보관 의무가 있는 정보는 삭제 또는 처리 정지가 제한될 수 있습니다.</div>
+      <div class="form-actions"><button type="button" class="button tertiary" data-action="close-modal">취소</button><button class="button primary" type="submit">요청 접수</button></div>
+    </form>
+  `);
+}
+
+function createPrivacyRightsRequest(event) {
+  event.preventDefault();
+  const target = document.querySelector("#privacy-rights-target")?.value;
+  const type = document.querySelector("#privacy-rights-type")?.value;
+  const detail = document.querySelector("#privacy-rights-detail")?.value.trim();
+  const contact = document.querySelector("#privacy-rights-contact")?.value.trim();
+  const linkedStudentIds = state.guardianLinks
+    .filter((item) => item.guardianUserId === currentUser().id && item.status === "verified")
+    .map((item) => item.studentId);
+  const studentId = target === "self" ? null : target;
+  if (!target || !type || !detail || !contact || (studentId && !linkedStudentIds.includes(studentId))) {
+    toast("요청 대상, 유형, 상세 내용과 연락처를 확인해 주세요.", "error");
+    return;
+  }
+  const now = new Date().toISOString();
+  const request = {
+    id: `privacy-request-${Date.now()}`,
+    requesterUserId: currentUser().id,
+    studentId,
+    type,
+    detail,
+    contact,
+    status: "received",
+    createdAt: now,
+    updatedAt: now
+  };
+  state.privacyRightsRequests.unshift(request);
+  addAudit(
+    "privacy.rights_requested",
+    "privacy_rights_request",
+    request.id,
+    `${currentUser().name} 개인정보 ${privacyRightTypeLabel(type)} 요청 접수`
+  );
   persistState();
+  closeModal();
   renderView();
-  toast("권리 요청을 접수했습니다. 운영자가 확인합니다.");
+  toast("개인정보 권리 요청을 접수했습니다. 운영자가 확인합니다.");
 }
 
 function savePilotStatus(academyId) {
@@ -5312,11 +5668,12 @@ function savePilotStatus(academyId) {
 
 function createSupportRequest(event) {
   event.preventDefault();
-  if (!hasPermission("request.manage")) return;
+  if (!hasPermission("request.create")) return;
   const academyId = document.querySelector("#support-academy").value;
   const title = document.querySelector("#support-title").value.trim();
   const detail = document.querySelector("#support-detail").value.trim();
-  if (!academyId || !title || !detail) {
+  const allowedAcademyIds = supportAcademiesForCurrentUser().map((item) => item.id);
+  if (!allowedAcademyIds.includes(academyId) || !title || !detail) {
     toast("학원, 제목, 내용을 입력해주세요.", "error");
     return;
   }
@@ -5325,11 +5682,12 @@ function createSupportRequest(event) {
     id: `req-${Date.now()}`,
     academyId,
     type: document.querySelector("#support-type").value,
-    priority: document.querySelector("#support-priority").value,
     status: "open",
     title,
     detail,
     reporterName: currentUser().name,
+    reporterUserId: currentUser().id,
+    reporterRole: currentRole(),
     assigneeUserId: null,
     resolution: "",
     createdAt: now,
@@ -5559,7 +5917,10 @@ document.addEventListener("click", (event) => {
   if (actionName === "change-student-class") changeStudentClass(action.dataset.studentId);
   if (actionName === "close-modal") closeModal();
   if (actionName === "invite-guardian") showInvitation(action.dataset.studentId);
-  if (actionName === "toggle-permission") togglePermission(action.dataset.permission);
+  if (actionName === "open-staff-member-modal") openStaffMemberModal();
+  if (actionName === "open-remove-staff-member") openRemoveStaffMember(action.dataset.membershipId);
+  if (actionName === "confirm-remove-staff-member") removeStaffMember(action.dataset.membershipId);
+  if (actionName === "toggle-permission") togglePermission(action.dataset.permission, action.dataset.membershipId);
   if (actionName === "copy-invite") {
     navigator.clipboard?.writeText(action.dataset.code);
     toast(`초대 코드 ${action.dataset.code}를 복사했습니다.`);
@@ -5608,7 +5969,7 @@ document.addEventListener("click", (event) => {
       toast("학부모 답변을 확인했습니다.");
     }
   }
-  if (actionName === "request-rights") requestRights();
+  if (actionName === "request-rights") openPrivacyRightsModal();
   if (actionName === "save-pilot-status") savePilotStatus(action.dataset.academyId);
   if (actionName === "open-academy-info") showAcademyInfo(action.dataset.academyId);
   if (actionName === "save-support-request") saveSupportRequest(action.dataset.requestId);
@@ -5626,6 +5987,8 @@ document.addEventListener("submit", (event) => {
   if (event.target.id === "connect-form") connectGuardian(event);
   if (event.target.classList.contains("comment-reply-form")) saveCommentReply(event);
   if (event.target.id === "support-create-form") createSupportRequest(event);
+  if (event.target.id === "privacy-rights-form") createPrivacyRightsRequest(event);
+  if (event.target.id === "staff-member-form") createStaffMember(event);
 });
 
 document.addEventListener("input", (event) => {
@@ -5689,6 +6052,11 @@ document.addEventListener("change", (event) => {
   }
   if (event.target.id === "operator-support-type-filter") {
     state.operatorSupportTypeFilter = event.target.value;
+    persistState();
+    renderView();
+  }
+  if (event.target.id === "permission-member-select") {
+    state.selectedStaffMemberId = event.target.value;
     persistState();
     renderView();
   }

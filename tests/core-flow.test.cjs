@@ -152,7 +152,7 @@ test("원장 메뉴는 업무 특성별 그룹을 한 번에 하나씩 펼친다
   assert.equal(await page.locator("#context-name").evaluate((element) => getComputedStyle(element).textAlign), "left");
   assert.equal(await page.locator("#context-name").evaluate((element) => getComputedStyle(element).fontSize), "16px");
   assert.equal(await page.locator(".hero-panel").count(), 0);
-  assert.match(await page.locator(".horizontal-metrics").first().innerText(), /출결 처리율\s+100%/);
+  assert.match(await page.locator(".horizontal-metrics").first().innerText(), /출결 처리율\s+2\/2/);
   assert.equal((await page.locator('#main-nav > [data-view="home"]').textContent()).trim(), "오늘 운영");
   assert.deepEqual(
     (await page.locator("[data-nav-group]").allTextContents()).map((label) => label.trim()),
@@ -276,12 +276,57 @@ test("강사 메뉴도 수업·원생 그룹과 단독 내 권한 메뉴를 사�
     ["원생 목록", "학습 분석", "학부모 소통"]
   );
   assert.equal(await page.locator('[data-view="consultations"]').count(), 0);
+  assert.equal((await page.locator('#main-nav > [data-view="support"]').textContent()).trim(), "오류·문의");
 
   await page.locator('[data-view="academy_comments"]').click();
   assert.equal(await page.locator("#page-title").textContent(), "학부모 소통");
   await page.locator('#main-nav > [data-view="permissions"]').click();
   assert.equal(await page.locator("#page-title").textContent(), "권한 확인");
   await context.close();
+});
+
+test("강사와 학부모도 오류·문의 접수 화면을 사용한다", async () => {
+  const instructor = await openAs("usr-teacher");
+  await navigateTo(instructor.page, "support");
+  assert.equal(await instructor.page.locator("#support-create-form").count(), 1);
+  assert.equal(await instructor.page.locator("#support-academy").inputValue(), "acd-dodam");
+  assert.equal(await instructor.page.locator("#support-academy").isHidden(), true);
+  assert.match(await instructor.page.locator("#support-create-form").innerText(), /문의 유형/);
+  assert.deepEqual(await instructor.page.locator("#support-type option").allTextContents(), [
+    "서비스 오류",
+    "사용 문의",
+    "기능 제안",
+    "기타"
+  ]);
+  assert.equal(await instructor.page.locator("#support-priority").count(), 0);
+  assert.equal(await instructor.page.locator(".support-list-panel h2").textContent(), "내 요청 내역");
+  await instructor.context.close();
+
+  const guardian = await openAs("usr-guardian");
+  assert.deepEqual(
+    (await guardian.page.locator("#main-nav .nav-item").allTextContents()).map((item) => item.trim()).slice(-2),
+    ["오류·문의", "내 정보·동의"]
+  );
+  await guardian.page.evaluate(() => {
+    state.guardianLinks.push({
+      id: "gln-support-second-academy",
+      academyId: "acd-bridge",
+      guardianUserId: "usr-guardian",
+      studentId: "std-minjun",
+      relationship: "부",
+      status: "verified",
+      verifiedAt: "2026-08-10T10:00:00+09:00"
+    });
+    renderShell();
+  });
+  await navigateTo(guardian.page, "support");
+  assert.deepEqual(await guardian.page.locator("#support-academy option").allTextContents(), [
+    "에듀수학학원",
+    "브릿지영어학원"
+  ]);
+  assert.equal(await guardian.page.locator("#support-academy").isVisible(), true);
+  assert.equal(await guardian.page.locator(".support-list-panel h2").textContent(), "내 요청 내역");
+  await guardian.context.close();
 });
 
 test("출결관리 조작 영역은 같은 글자 크기를 사용한다", async () => {
@@ -359,6 +404,67 @@ test("학원 기본정보는 요청한 두 항목씩 배치하고 주요 프로�
   await context.close();
 });
 
+test("원장은 학원 구성원을 추가하고 강사별 권한을 설정한 뒤 안전하게 제외한다", async () => {
+  const { context, page } = await openAs("usr-owner");
+  await navigateTo(page, "academy");
+  const memberPanel = page.locator(".panel").filter({ has: page.locator("h2", { hasText: "학원 구성원" }) });
+  assert.equal(await memberPanel.locator(".staff-member-card").count(), 2);
+  await memberPanel.locator('[data-action="open-staff-member-modal"]').click();
+  await page.locator("#staff-member-name").fill("이지현");
+  await page.locator("#staff-member-phone").fill("010-3333-4444");
+  await page.locator('input[name="staff-classes"]').first().check();
+  await page.locator("#staff-member-form").evaluate((form) => form.requestSubmit());
+
+  const addedCard = memberPanel.locator(".staff-member-card").filter({ hasText: "이지현" });
+  assert.equal(await addedCard.count(), 1);
+  assert.match(await addedCard.innerText(), /강사.*담당 반/s);
+  assert.equal(await addedCard.locator('[data-action="open-remove-staff-member"]').textContent(), "삭제");
+  assert.equal(
+    await addedCard.locator(".staff-name-actions").evaluate((element) => element.querySelector("strong").nextElementSibling === element.querySelector("button")),
+    true
+  );
+  assert.equal(await page.locator("#permission-member-select option").count(), 2);
+  const added = await page.evaluate(() => {
+    const user = state.users.find((item) => item.phone === "010-3333-4444");
+    const membership = state.staffMemberships.find((item) => item.userId === user.id && item.academyId === "acd-dodam");
+    return {
+      userId: user.id,
+      membershipId: membership.id,
+      status: membership.status,
+      assignments: state.staffClassAssignments.filter((item) => item.userId === user.id).length,
+      auditAdded: state.auditLogs.some((item) => item.action === "staff.member_added" && item.targetId === membership.id)
+    };
+  });
+  assert.equal(added.status, "active");
+  assert.equal(added.assignments, 1);
+  assert.equal(added.auditAdded, true);
+  await page.locator("#permission-member-select").selectOption(added.membershipId);
+  await page.locator('[data-action="toggle-permission"][data-permission="consultation.manage"]').click();
+  assert.equal(
+    await page.evaluate((membershipId) => state.staffMemberships.find((item) => item.id === membershipId).grants.includes("consultation.manage"), added.membershipId),
+    true
+  );
+
+  await addedCard.locator('[data-action="open-remove-staff-member"]').click();
+  assert.match(await page.locator("#modal").innerText(), /구성원 제외.*담당 반 1개.*계정과 감사 이력은 안전하게 보존/s);
+  await page.locator('[data-action="confirm-remove-staff-member"]').click();
+  assert.equal(await memberPanel.locator(".staff-member-card").filter({ hasText: "이지현" }).count(), 0);
+  const removed = await page.evaluate((membershipId) => {
+    const membership = state.staffMemberships.find((item) => item.id === membershipId);
+    return {
+      status: membership.status,
+      grants: membership.grants,
+      assignments: state.staffClassAssignments.filter((item) => item.userId === membership.userId).length,
+      auditRemoved: state.auditLogs.some((item) => item.action === "staff.member_removed" && item.targetId === membership.id)
+    };
+  }, added.membershipId);
+  assert.equal(removed.status, "inactive");
+  assert.deepEqual(removed.grants, []);
+  assert.equal(removed.assignments, 0);
+  assert.equal(removed.auditRemoved, true);
+  await context.close();
+});
+
 test("원생 상세에서 반을 변경하고 과거 기록과 이력을 유지한다", async () => {
   const { context, page } = await openAs("usr-owner");
   const errors = [];
@@ -424,19 +530,19 @@ test("원생 상세에서 반을 변경하고 과거 기록과 이력을 유지�
     await profileMetrics.locator(".metric-card > span, .metric-card > strong").evaluateAll((items) =>
       items.map((item) => getComputedStyle(item).fontSize)
     ),
-    ["15px", "15px", "15px", "15px", "15px", "15px", "15px", "15px"]
+    ["15px", "22px", "15px", "22px", "15px", "22px", "15px", "22px"]
   );
   assert.deepEqual(
     await profileMetrics.locator(".metric-card").evaluateAll((cards) =>
       cards.slice(0, 2).map((card) => getComputedStyle(card.querySelector("strong")).fontSize)
     ),
-    ["15px", "15px"]
+    ["22px", "22px"]
   );
   assert.equal(
     await profileMetrics.locator(".metric-card").last().locator("strong").evaluate(
       (element) => getComputedStyle(element).fontSize
     ),
-    "15px"
+    "22px"
   );
   const classMetric = await profileMetrics.locator(".metric-card.textual").nth(2).evaluate((card) => {
     const label = card.querySelector("span").getBoundingClientRect();
@@ -581,6 +687,7 @@ test("운영자 오늘 입력률은 여러 날짜 기록이 있어도 100%를 �
 test("운영자는 기간별 입력·조회율과 파일럿 상태를 관리한다", async () => {
   const { context, page } = await openAs("usr-operator");
   assert.equal(await page.locator("#page-title").textContent(), "운영 현황");
+  assert.equal(await page.locator("#view-root > .hero-panel").count(), 0);
   assert.deepEqual(
     (await page.locator("#main-nav .nav-item").allTextContents()).map((item) => item.trim()),
     ["운영 현황", "서비스 이용", "파일럿 학원", "오류·문의", "공통 데이터 구조", "전체 감사 이력"]
@@ -646,28 +753,25 @@ test("운영자 전체 조회율은 학원별 보호자 연결 단위로 집계�
   await context.close();
 });
 
-test("운영자는 오류·문의를 접수하고 처리 이력을 남긴다", async () => {
-  const { context, page } = await openAs("usr-operator");
+test("원장이 오류·문의를 접수하고 운영자가 처리 이력을 남긴다", async () => {
+  const { context, page } = await openAs("usr-owner");
   await navigateTo(page, "support");
   assert.equal(await page.locator("#page-title").textContent(), "오류·문의");
+  assert.equal(await page.locator(".support-list-panel h2").textContent(), "학원 요청 내역");
+  assert.equal(
+    await page.locator(".support-layout").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length),
+    2
+  );
+  assert.equal(await page.locator(".support-layout > .panel").first().evaluate((element) => getComputedStyle(element).minHeight), "640px");
+  assert.equal(await page.locator("#support-detail").evaluate((element) => getComputedStyle(element).minHeight), "260px");
+  assert.equal(await page.locator(".support-list").evaluate((element) => getComputedStyle(element).maxHeight), "540px");
   assert.equal(
     await page.locator("#support-create-form").evaluate((form) => getComputedStyle(form).rowGap),
     "20px"
   );
-  assert.deepEqual(
-    await page.locator("#support-create-form > label").evaluateAll((labels) =>
-      labels.map((label) => ({
-        display: getComputedStyle(label).display,
-        gap: getComputedStyle(label).gap,
-        marginTop: getComputedStyle(label).marginTop
-      }))
-    ),
-    Array(5).fill({ display: "grid", gap: "8px", marginTop: "0px" })
-  );
-
-  await page.locator("#support-academy").selectOption("acd-bridge");
+  assert.equal(await page.locator("#support-academy").inputValue(), "acd-dodam");
+  assert.equal(await page.locator("#support-academy").isHidden(), true);
   await page.locator("#support-type").selectOption("error");
-  await page.locator("#support-priority").selectOption("high");
   await page.locator("#support-title").fill("CSV 업로드 완료 화면 확인 필요");
   await page.locator("#support-detail").fill("오류 행 표시가 접힌 상태로 보여 확인을 요청합니다.");
   await page.locator("#support-create-form").evaluate((form) => form.requestSubmit());
@@ -676,10 +780,26 @@ test("운영자는 오류·문의를 접수하고 처리 이력을 남긴다", a
     state.supportRequests.find((item) => item.title === "CSV 업로드 완료 화면 확인 필요")
   );
   assert.equal(created.status, "open");
-  assert.equal(created.academyId, "acd-bridge");
+  assert.equal(created.academyId, "acd-dodam");
+  assert.equal(created.reporterUserId, "usr-owner");
+  assert.equal(created.reporterRole, "academy_owner");
+
+  const ownerCard = page.locator(".support-card").filter({ hasText: "CSV 업로드 완료 화면 확인 필요" });
+  assert.match(await ownerCard.innerText(), /서비스 오류.*답변을 기다리고 있습니다/s);
+  assert.equal(await ownerCard.locator("[data-support-status]").count(), 0);
+
+  await page.evaluate(() => {
+    session = { userId: "usr-operator", verifiedAt: new Date().toISOString() };
+    state.activeView = "support";
+    persistSession();
+    persistState();
+    render();
+  });
+  assert.equal(await page.locator("#support-create-form").count(), 0);
+  assert.equal(await page.locator(".support-list-panel h2").textContent(), "처리 목록");
 
   const card = page.locator(".support-card").filter({ hasText: "CSV 업로드 완료 화면 확인 필요" });
-  assert.match(await card.innerText(), /긴급/);
+  assert.match(await card.innerText(), /서비스 오류/);
   await card.locator("[data-support-status]").selectOption("resolved");
   await card.locator("[data-support-note]").fill("오류 행을 자동으로 펼치도록 안내했습니다.");
   await card.locator('[data-action="save-support-request"]').click();
@@ -702,6 +822,18 @@ test("운영자는 오류·문의를 접수하고 처리 이력을 남긴다", a
   assert.equal(resolved.history.length, 1);
   assert.equal(resolved.audits.length, 2);
   assert.match(await card.innerText(), /완료/);
+
+  await page.evaluate(() => {
+    session = { userId: "usr-owner", verifiedAt: new Date().toISOString() };
+    state.activeView = "support";
+    persistSession();
+    persistState();
+    render();
+  });
+  assert.match(
+    await page.locator(".support-card").filter({ hasText: "CSV 업로드 완료 화면 확인 필요" }).innerText(),
+    /완료.*오류 행을 자동으로 펼치도록 안내했습니다/s
+  );
   await context.close();
 });
 
@@ -907,6 +1039,45 @@ test("학부모는 같은 자녀의 새 학원을 추가 연결한다", async ()
   await context.close();
 });
 
+test("학부모는 개인정보 권리 요청 내용을 선택해 접수하고 내역을 확인한다", async () => {
+  const { context, page } = await openAs("usr-guardian");
+  await navigateTo(page, "data");
+  const panel = page.locator(".privacy-rights-panel");
+  assert.match(
+    await panel.innerText(),
+    /개인정보 권리 요청.*열람.*정정.*삭제.*처리 정지.*동의 철회.*접수된 개인정보 권리 요청이 없습니다/s
+  );
+  await panel.locator('[data-action="request-rights"]').click();
+  assert.equal(await page.locator("#privacy-rights-type option").count(), 5);
+  await page.locator("#privacy-rights-type").selectOption("correction");
+  await page.locator("#privacy-rights-detail").fill("휴대전화 번호를 변경하고 싶습니다.");
+  await page.locator("#privacy-rights-contact").fill("010-9876-0000");
+  await page.locator("#privacy-rights-form").evaluate((form) => form.requestSubmit());
+  assert.match(await panel.innerText(), /정정 요청.*본인.*휴대전화 번호를 변경하고 싶습니다.*접수/s);
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const request = state.privacyRightsRequests[0];
+      return {
+        requesterUserId: request.requesterUserId,
+        studentId: request.studentId,
+        type: request.type,
+        contact: request.contact,
+        status: request.status
+      };
+    }),
+    {
+      requesterUserId: "usr-guardian",
+      studentId: null,
+      type: "correction",
+      contact: "010-9876-0000",
+      status: "received"
+    }
+  );
+  await page.reload({ waitUntil: "domcontentloaded" });
+  assert.match(await page.locator(".privacy-rights-panel").innerText(), /정정 요청.*접수/s);
+  await context.close();
+});
+
 test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 확인한다", async () => {
   const { context, page } = await openAs("usr-guardian");
   const errors = [];
@@ -1016,7 +1187,7 @@ test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 �
   assert.equal(await page.locator("#view-root > .guardian-hero").count(), 0);
   const nationalIndicators = page.locator(".national-education-panel");
   let nationalIndicatorText = await nationalIndicators.innerText();
-  assert.match(nationalIndicatorText, /국가 교육지표.*2025년.*중3.*국어.*64\.5%.*10\.8%.*수학.*49\.6%.*14\.9%.*영어.*60\.5%.*6\.5%/s);
+  assert.match(nationalIndicatorText, /국가 학업성취도 참고지표.*2025년.*중3.*국어.*64\.5%.*10\.8%.*수학.*49\.6%.*14\.9%.*영어.*60\.5%.*6\.5%/s);
   assert.match(nationalIndicatorText, /표집 25,992명 · 539개교 · 출처: 교육부·한국교육과정평가원/);
   assert.equal((nationalIndicatorText.match(/2025년/g) || []).length, 1);
   assert.doesNotMatch(nationalIndicatorText, /PUBLIC EDUCATION DATA|학생 개인과 비교하지 않는|우수·보통·기초/);
@@ -1043,9 +1214,10 @@ test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 �
   assert.equal(await harinGrowth.locator(".growth-chart-point").count(), 3);
   assert.equal(await harinGrowth.locator(".growth-chart-line").count(), 1);
   assert.match(await harinGrowth.innerText(), /같은 학원·같은 과목 기록끼리 각각 선으로 연결합니다/);
-  assert.equal(await harinGrowth.locator(".growth-chart-summary").count(), 0);
-  assert.deepEqual(await harinGrowth.locator(".growth-point-change").allTextContents(), ["+6", "+7"]);
-  assert.equal(await harinGrowth.locator(".growth-latest-ring").count(), 1);
+  assert.equal(await harinGrowth.locator(".growth-chart-summary").count(), 1);
+  assert.deepEqual(await harinGrowth.locator(".growth-point-change text").allTextContents(), ["직전 대비 +6점", "직전 대비 +7점"]);
+  assert.deepEqual(await harinGrowth.locator(".growth-point-test-date").allTextContents(), ["6/28", "7/11", "7/18"]);
+  assert.equal(await harinGrowth.locator(".growth-latest-ring").count(), 0);
   assert.deepEqual(
     await harinGrowth.locator(".growth-axis-value, .growth-point-score").evaluateAll((items) =>
       items.slice(0, 2).map((item) => getComputedStyle(item).fontSize)
@@ -1069,15 +1241,16 @@ test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 �
   assert.equal(await minjunGrowth.locator(".growth-chart.multi-line-chart .growth-chart-point").count(), 5);
   assert.equal(await minjunGrowth.locator(".growth-chart-line").count(), 1);
   assert.equal(await minjunGrowth.locator(".growth-chart-legend span").count(), 3);
-  assert.equal(await minjunGrowth.locator(".growth-chart-summary").count(), 0);
-  assert.deepEqual(await minjunGrowth.locator(".growth-point-change").allTextContents(), ["+7", "-3"]);
-  assert.equal(await minjunGrowth.locator(".growth-latest-ring").count(), 3);
+  assert.equal(await minjunGrowth.locator(".growth-chart-summary").count(), 1);
+  assert.deepEqual(await minjunGrowth.locator(".growth-point-change text").allTextContents(), []);
+  assert.equal(await minjunGrowth.locator(".growth-latest-ring").count(), 0);
   await minjunGrowth.locator('[data-action="select-growth-academy"][data-academy-id="acd-bridge"]').click();
   assert.equal(await minjunGrowth.locator(".growth-subject-filters button").count(), 2);
   assert.equal(await minjunGrowth.locator(".growth-chart.line-chart .growth-chart-point").count(), 3);
   assert.equal(await minjunGrowth.locator(".growth-chart-line").count(), 1);
   assert.match(await minjunGrowth.innerText(), /브릿지영어학원의 영어 기록만 연결합니다/);
-  assert.deepEqual(await minjunGrowth.locator(".growth-point-change").allTextContents(), ["+7", "-3"]);
+  assert.deepEqual(await minjunGrowth.locator(".growth-point-change text").allTextContents(), ["직전 대비 +7점", "직전 대비 -3점"]);
+  assert.deepEqual(await minjunGrowth.locator(".growth-point-test-date").allTextContents(), ["7/5", "7/20", "7/22"]);
   assert.match(await minjunGrowth.locator(".growth-report-entry").innerText(), /브릿지영어학원.*상세 확인/s);
   await minjunGrowth.locator('[data-action="open-growth-report"]').click();
   assert.match(await page.locator("#modal").innerText(), /정민준 학습 리포트.*브릿지영어학원 · 영어.*평가 기록.*3건.*72점 → 76점 · \+4점.*7월 1주 영어 평가.*7월 3주 영어 평가.*7월 4주 영어 평가/s);
@@ -1378,7 +1551,7 @@ test("학생별 과제 예외를 저장하고 자동 통계에 반영한다", as
     await page.locator(".homework-metrics .metric-card strong").evaluateAll((items) =>
       items.map((item) => getComputedStyle(item).fontSize)
     ),
-    ["16px", "16px", "16px", "16px"]
+    ["22px", "22px", "22px", "22px"]
   );
   const homeworkColumnWidths = await page
     .locator(".homework-table tbody tr")

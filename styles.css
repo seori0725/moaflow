@@ -941,7 +941,7 @@ body[data-role="guardian"] .workspace-context strong {
 
 .horizontal-metrics .metric-card.textual strong {
   min-width: 0;
-  font-size: 15px;
+  font-size: 22px;
   text-align: right;
 }
 
@@ -1124,6 +1124,22 @@ body[data-role="guardian"] .workspace-context strong {
   margin-bottom: 0;
 }
 
+.consultation-history-head {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.consultation-history-head h2 {
+  white-space: nowrap;
+}
+
+.consultation-history-head .record-search-control {
+  width: 100%;
+  margin-left: 0;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
 .panel-subsection + .panel-subsection {
   margin-top: 20px;
   padding-top: 20px;
@@ -1134,6 +1150,50 @@ body[data-role="guardian"] .workspace-context strong {
   margin: 0 0 10px;
   font-size: 14px;
   color: var(--ink);
+}
+
+.privacy-rights-guide > p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.privacy-rights-types {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.privacy-rights-types span {
+  min-height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--ice);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.privacy-rights-history {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.privacy-rights-request-card > div:nth-child(2) {
+  flex: 1;
+}
+
+.privacy-rights-request-card p {
+  margin: 3px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .check-item,
@@ -1225,9 +1285,9 @@ body[data-role="guardian"] .workspace-context strong {
 .staff-member-card > div.staff-member-info {
   display: grid;
   flex: 1;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(115px, auto) minmax(95px, auto) minmax(96px, 1fr);
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .staff-phone {
@@ -1949,8 +2009,76 @@ body[data-role="guardian"] .workspace-context strong {
 
 .support-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.6fr);
+  grid-template-columns: minmax(320px, 2fr) minmax(0, 3fr);
   gap: 16px;
+}
+
+.staff-name-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-name-actions strong,
+.staff-delete-button {
+  white-space: nowrap;
+}
+
+.staff-delete-button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--red);
+}
+
+#permission-member-select {
+  min-width: 150px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.staff-class-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.staff-class-options label {
+  min-height: 36px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.staff-class-options input {
+  width: 16px;
+  min-height: 16px;
+}
+
+.staff-class-options span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.support-layout > .panel {
+  min-height: 640px;
+}
+
+.support-layout #support-detail {
+  min-height: 260px;
+}
+
+.support-layout .support-list {
+  max-height: 540px;
 }
 
 #support-create-form {
@@ -1982,10 +2110,6 @@ body[data-role="guardian"] .workspace-context strong {
   background: #fff;
 }
 
-.support-card.urgent {
-  border-left: 3px solid var(--orange);
-}
-
 .support-card header,
 .support-card header > div {
   display: flex;
@@ -1999,6 +2123,10 @@ body[data-role="guardian"] .workspace-context strong {
 
 .support-card header strong {
   font-size: 13px;
+}
+
+.support-card .badge {
+  white-space: nowrap;
 }
 
 .support-card time,
@@ -2024,6 +2152,27 @@ body[data-role="guardian"] .workspace-context strong {
 .support-update-row select,
 .support-update-row input {
   min-width: 0;
+}
+
+.support-response {
+  margin-top: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 5px;
+  border-radius: 9px;
+  color: var(--ink-muted);
+  background: #f4f7f8;
+  font-size: 11px;
+}
+
+.support-response.answered {
+  color: var(--ink-soft);
+  background: var(--green-bg);
+}
+
+.support-response strong {
+  color: var(--ink);
+  font-size: 11px;
 }
 
 .support-card details {
@@ -2148,10 +2297,6 @@ body[data-role="guardian"] .workspace-context strong {
 .homework-head-fields,
 .test-meta-fields {
   margin-bottom: 14px;
-}
-
-.horizontal-metrics.homework-metrics .metric-card strong {
-  font-size: 16px;
 }
 
 #homework-selected-count {
@@ -2302,10 +2447,6 @@ body[data-role="guardian"] .workspace-context strong {
 .test-result-table input[type="number"] {
   min-width: 88px;
   width: 88px;
-}
-
-.test-metrics .metric-card.textual strong {
-  font-size: 22px;
 }
 
 #test-class,
@@ -3259,6 +3400,46 @@ body[data-role="guardian"] .workspace-context strong {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.growth-chart-summary {
+  margin: 14px 0 -2px;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.growth-chart-summary span {
+  min-height: 32px;
+  padding: 6px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.growth-chart-summary i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--series-color);
+}
+
+.growth-chart-summary small {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.growth-chart-summary strong {
+  font-size: 11px;
+}
+
+.growth-chart-summary .positive { color: var(--green); }
+.growth-chart-summary .negative { color: var(--red); }
+.growth-chart-summary .neutral { color: var(--ink-soft); }
+
 .growth-chart svg {
   width: 100%;
   min-width: 660px;
@@ -3284,6 +3465,11 @@ body[data-role="guardian"] .workspace-context strong {
   text-anchor: end;
 }
 
+.growth-point-test-date {
+  fill: var(--ink-soft);
+  font-size: 8px;
+}
+
 .growth-point-score {
   fill: var(--ink);
   paint-order: stroke;
@@ -3295,35 +3481,41 @@ body[data-role="guardian"] .workspace-context strong {
 }
 
 .growth-point-change {
-  paint-order: stroke;
-  stroke: var(--surface);
-  stroke-linejoin: round;
-  stroke-width: 4px;
   font-family: inherit;
   font-size: 9px;
   font-weight: 800;
+}
+
+.growth-point-change rect {
+  stroke-width: 1;
+}
+
+.growth-point-change text {
   text-anchor: middle;
 }
 
-.growth-point-change.positive {
+.growth-point-change.positive text {
   fill: var(--green);
 }
 
-.growth-point-change.negative {
+.growth-point-change.positive rect {
+  fill: #edf8f1;
+  stroke: #d5ecdd;
+}
+
+.growth-point-change.negative text {
   fill: var(--red);
+}
+
+.growth-point-change.negative rect {
+  fill: #fff2f1;
+  stroke: #f3d8d5;
 }
 
 .growth-chart-point circle {
   fill: var(--series-color);
   stroke: var(--surface);
-  stroke-width: 5;
-}
-
-.growth-chart-point .growth-latest-ring {
-  fill: none;
-  stroke: var(--series-color);
-  stroke-width: 2;
-  opacity: 0.35;
+  stroke-width: 4;
 }
 
 .growth-chart-line {
@@ -3331,8 +3523,7 @@ body[data-role="guardian"] .workspace-context strong {
   stroke: var(--series-color);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 4;
-  filter: drop-shadow(0 2px 2px rgba(12, 53, 71, 0.14));
+  stroke-width: 3;
 }
 
 .growth-report-entry {
@@ -3537,8 +3728,13 @@ body[data-role="guardian"] .workspace-context strong {
 }
 
 .comment-thread-list {
+  max-height: 240px;
+  padding-right: 4px;
   display: grid;
   gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .comment-thread-empty {
@@ -3747,6 +3943,14 @@ body[data-role="guardian"] .workspace-context strong {
 @media (max-width: 760px) {
   .support-layout {
     grid-template-columns: 1fr;
+  }
+
+  .support-layout > .panel {
+    min-height: 0;
+  }
+
+  .support-layout .support-list {
+    max-height: 360px;
   }
 
   .support-update-row {
@@ -4028,6 +4232,16 @@ body[data-role="guardian"] .workspace-context strong {
   display: none;
 }
 
+@media (max-width: 1280px) {
+  .horizontal-metrics.grid.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid.two.consultation-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 980px) {
   .auth-screen {
     grid-template-columns: 1fr;
@@ -4126,6 +4340,7 @@ body[data-role="guardian"] .workspace-context strong {
     font-size: 10px;
   }
 
+  .horizontal-metrics.grid.four,
   .grid.two,
   .grid.three,
   .grid.four,

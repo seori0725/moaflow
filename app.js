@@ -430,14 +430,14 @@ const initialState = {
     }
   ],
   usageEvents: [
-    { id: "evt-1", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.home_viewed", createdAt: "2026-07-27T18:12:00+09:00" },
-    { id: "evt-analytics-1", academyId: "acd-dodam", userId: "usr-owner", type: "academy.analytics_viewed", createdAt: "2026-07-28T17:10:00+09:00" },
-    { id: "evt-analytics-2", academyId: "acd-dodam", userId: "usr-owner", type: "academy.analytics_viewed", createdAt: "2026-07-29T17:20:00+09:00" },
-    { id: "evt-analytics-3", academyId: "acd-dodam", userId: "usr-teacher", type: "academy.analytics_viewed", createdAt: "2026-07-30T12:30:00+09:00" },
-    { id: "evt-analytics-filter-1", academyId: "acd-dodam", userId: "usr-owner", type: "academy.analytics_filter_used", createdAt: "2026-07-29T17:21:00+09:00" },
-    { id: "evt-growth-1", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.growth_viewed", createdAt: "2026-07-28T20:10:00+09:00" },
-    { id: "evt-growth-2", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.growth_viewed", createdAt: "2026-07-30T08:40:00+09:00" },
-    { id: "evt-growth-filter-1", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.growth_filter_used", createdAt: "2026-07-30T08:42:00+09:00" }
+    { id: "evt-1", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.home_viewed", createdAt: relativeKoreaDateTime(3, "18:12:00") },
+    { id: "evt-analytics-1", academyId: "acd-dodam", userId: "usr-owner", type: "academy.analytics_viewed", createdAt: relativeKoreaDateTime(3, "17:10:00") },
+    { id: "evt-analytics-2", academyId: "acd-dodam", userId: "usr-owner", type: "academy.analytics_viewed", createdAt: relativeKoreaDateTime(2, "17:20:00") },
+    { id: "evt-analytics-3", academyId: "acd-dodam", userId: "usr-teacher", type: "academy.analytics_viewed", createdAt: relativeKoreaDateTime(1, "12:30:00") },
+    { id: "evt-analytics-filter-1", academyId: "acd-dodam", userId: "usr-owner", type: "academy.analytics_filter_used", createdAt: relativeKoreaDateTime(2, "17:21:00") },
+    { id: "evt-growth-1", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.growth_viewed", createdAt: relativeKoreaDateTime(3, "20:10:00") },
+    { id: "evt-growth-2", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.growth_viewed", createdAt: relativeKoreaDateTime(1, "08:40:00") },
+    { id: "evt-growth-filter-1", academyId: "acd-dodam", userId: "usr-guardian", type: "guardian.growth_filter_used", createdAt: relativeKoreaDateTime(1, "08:42:00") }
   ],
   supportRequests: [
     {
@@ -466,7 +466,7 @@ const initialState = {
       academyId: "acd-bridge",
       type: "inquiry",
       status: "open",
-      title: "파일럿 시작 전 원생 CSV 형식 문의",
+      title: "서비스 도입 전 원생 CSV 형식 문의",
       detail: "기존 원생 파일의 반 이름을 그대로 사용할 수 있는지 확인이 필요합니다.",
       reporterName: "브릿지영어학원",
       assigneeUserId: null,
@@ -569,7 +569,7 @@ const navigation = {
   operator: [
     ["home", "운영 현황"],
     ["usage", "서비스 이용"],
-    ["pilots", "파일럿 학원"],
+    ["pilots", "학원 관리"],
     ["support", "오류·문의"],
     ["data", "공통 데이터 구조"],
     ["audit", "전체 감사 이력"]
@@ -849,7 +849,7 @@ function auditActionLabel(action) {
       "assessment.saved": "테스트 결과 저장",
       "consultation.saved": "상담 기록 저장",
       "consultation.reply_added": "코멘트 답변 등록",
-      "pilot.status_changed": "파일럿 상태 변경",
+      "pilot.status_changed": "운영 상태 변경",
       "support.created": "오류·문의 접수",
       "support.updated": "오류·문의 처리",
       "invitation.created": "보호자 초대 발급",
@@ -872,6 +872,19 @@ function academyById(id) {
 
 function koreaDate(value = new Date()) {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(value);
+}
+
+function koreaTime(value = new Date()) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(value);
+}
+
+function relativeKoreaDateTime(daysAgo, time) {
+  return `${koreaDate(new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000))}T${time}+09:00`;
 }
 
 function isValidDateString(value) {
@@ -1162,8 +1175,9 @@ function renderShell() {
     contextName.textContent = `${user.name} 학부모`;
     document.querySelector("#context-detail").textContent = `연결 자녀 ${linked}명`;
   } else {
-    contextName.textContent = "파일럿 운영";
-    document.querySelector("#context-detail").textContent = `학원 ${state.academies.length}곳`;
+    document.querySelector("#context-label").textContent = "";
+    contextName.textContent = user.name;
+    document.querySelector("#context-detail").textContent = `등록 학원 수 ${state.academies.length}`;
   }
 
   const allowedViews = navigation[role];
@@ -1759,6 +1773,8 @@ function analyticsSnapshot(studentId, period) {
   return {
     enrollment,
     attendanceRate,
+    attended,
+    attendanceTotal: attendance.length,
     homeworkRate,
     latestScore,
     scoreDelta,
@@ -1768,6 +1784,43 @@ function analyticsSnapshot(studentId, period) {
     attempts,
     latestConsultation,
     rangeLabel
+  };
+}
+
+function classAnalyticsSnapshot(className, period) {
+  const enrollments = accessibleAcademyEnrollments().filter(
+    (item) => item.status === "active" && item.className === className
+  );
+  const students = enrollments.map((enrollment) => ({
+    enrollment,
+    student: studentById(enrollment.studentId),
+    snapshot: analyticsSnapshot(enrollment.studentId, period)
+  }));
+  const attendanceTotal = students.reduce((sum, item) => sum + item.snapshot.attendanceTotal, 0);
+  const attended = students.reduce((sum, item) => sum + item.snapshot.attended, 0);
+  const homeworkTotal = students.reduce((sum, item) => sum + item.snapshot.homeworkEligible.length, 0);
+  const homeworkCompleted = students.reduce((sum, item) => sum + item.snapshot.homeworkCompleted, 0);
+  const scores = students.map((item) => item.snapshot.latestScore).filter(Number.isFinite);
+  const deltas = students.map((item) => item.snapshot.scoreDelta).filter(Number.isFinite);
+  const average = (values) => values.length
+    ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+    : null;
+  const distribution = [
+    { label: "90점 이상", count: scores.filter((score) => score >= 90).length },
+    { label: "80~89점", count: scores.filter((score) => score >= 80 && score < 90).length },
+    { label: "70~79점", count: scores.filter((score) => score >= 70 && score < 80).length },
+    { label: "70점 미만", count: scores.filter((score) => score < 70).length }
+  ];
+  const { start, end } = analyticsPeriodBounds(period, currentAcademy().id);
+  return {
+    students,
+    attendanceRate: attendanceTotal ? Math.round((attended / attendanceTotal) * 100) : null,
+    homeworkRate: homeworkTotal ? Math.round((homeworkCompleted / homeworkTotal) * 100) : null,
+    averageScore: average(scores),
+    averageDelta: average(deltas),
+    scoreCount: scores.length,
+    distribution,
+    rangeLabel: start ? `${start} ~ ${end}` : `최초 기록 ~ ${end}`
   };
 }
 
@@ -1784,8 +1837,8 @@ function renderAnalyticsBody(studentId, period, includeMetrics = true) {
   const snapshot = analyticsSnapshot(studentId, period);
   return `
     ${includeMetrics ? renderAnalyticsMetrics(snapshot) : ""}
-    <article class="panel analytics-summary-panel">
-      <div class="panel-head"><div><h2>자동 생성 요약</h2></div><span class="badge green">${period === "weekly" ? "주간" : period === "monthly" ? "월간" : "누적"} 자동 집계</span></div>
+    <section class="analytics-summary-panel analytics-group-section">
+      <div class="panel-head"><div><h2>학습 현황 요약</h2></div><span class="badge green">${period === "weekly" ? "주간" : period === "monthly" ? "월간" : "누적"} 자동 집계</span></div>
       <div class="summary-strip phase-three-summary">
         <div class="summary-cell"><span>수업 기록</span><strong>${snapshot.learning.length}회</strong></div>
         <div class="summary-cell"><span>과제</span><strong>${snapshot.homeworkCompleted}/${snapshot.homeworkEligible.length || 0}회</strong></div>
@@ -1793,7 +1846,74 @@ function renderAnalyticsBody(studentId, period, includeMetrics = true) {
         <div class="summary-cell"><span>향상폭</span><strong>${snapshot.scoreDelta === null ? "자료 부족" : `${snapshot.scoreDelta >= 0 ? "+" : ""}${snapshot.scoreDelta}점`}</strong></div>
       </div>
       ${snapshot.learning.length ? `<div class="analysis-list">${snapshot.learning.slice(-4).reverse().map((item) => `<div><span>${item.lessonDate}</span><strong>${escapeHtml(item.textbook)} · ${escapeHtml(item.unit)}</strong><small>${escapeHtml(item.pages)}</small></div>`).join("")}</div>` : '<div class="empty-state compact-empty">선택 기간의 학습기록이 없습니다.</div>'}
-    </article>
+    </section>
+  `;
+}
+
+function renderClassAnalyticsBody(className, period) {
+  const snapshot = classAnalyticsSnapshot(className, period);
+  return `
+    <section class="grid four horizontal-metrics analytics-metrics class-analytics-metrics analytics-group-section">
+      ${metricCard("평균 점수", snapshot.averageScore === null ? "테스트 미사용" : `${snapshot.averageScore}점`, `${snapshot.scoreCount}/${snapshot.students.length}명`, false, true)}
+      ${metricCard("과제 수행률", snapshot.homeworkRate === null ? "데이터 부족" : `${snapshot.homeworkRate}%`, "반 전체 과제 기준", snapshot.homeworkRate !== null && snapshot.homeworkRate < 70, true)}
+      ${metricCard("출석률", snapshot.attendanceRate === null ? "데이터 부족" : `${snapshot.attendanceRate}%`, "반 전체 출결 기준", false, true)}
+      ${metricCard("평균 향상도", snapshot.averageDelta === null ? "자료 부족" : `${snapshot.averageDelta >= 0 ? "+" : ""}${snapshot.averageDelta}점`, "첫 평가 대비 최근 평가", false, true)}
+    </section>
+    <section class="class-analytics-panel analytics-group-section">
+      <div class="panel-head">
+        <div><h2>점수 분포</h2><p>최근 평가가 있는 ${snapshot.scoreCount}/${snapshot.students.length}명 기준</p></div>
+        <span class="badge green">${period === "weekly" ? "주간" : period === "monthly" ? "월간" : "누적"} 자동 집계</span>
+      </div>
+      <div class="class-score-distribution">
+        ${snapshot.distribution.map((item) => {
+          const width = snapshot.scoreCount ? Math.round((item.count / snapshot.scoreCount) * 100) : 0;
+          return `<div class="score-distribution-item" data-score-band="${escapeHtml(item.label)}">
+            <div><span>${escapeHtml(item.label)}</span><strong>${item.count}명</strong></div>
+            <span class="score-distribution-bar"><i style="width: ${width}%"></i></span>
+          </div>`;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderComparisonMetric(label, studentValue, classValue, suffix, emptyLabel = "데이터 부족") {
+  const studentDisplay = Number.isFinite(studentValue)
+    ? `${studentValue >= 0 && label === "향상도" ? "+" : ""}${studentValue}${suffix}`
+    : emptyLabel;
+  const classDisplay = Number.isFinite(classValue)
+    ? `${classValue >= 0 && label === "향상도" ? "+" : ""}${classValue}${suffix}`
+    : emptyLabel;
+  const difference = Number.isFinite(studentValue) && Number.isFinite(classValue)
+    ? studentValue - classValue
+    : null;
+  const differenceSuffix = suffix === "%" ? "%p" : suffix;
+  const differenceLabel = difference === null
+    ? "비교 자료 부족"
+    : difference === 0
+      ? "동일"
+      : `${difference > 0 ? "+" : ""}${difference}${differenceSuffix}`;
+  const differenceTone = difference === null || difference === 0 ? "neutral" : difference > 0 ? "positive" : "negative";
+  return `<article class="metric-card comparison-metric-card textual">
+    <span>${escapeHtml(label)}</span>
+    <strong>${studentDisplay}</strong>
+    <small class="comparison-summary ${differenceTone}">반 기준 ${classDisplay} (${differenceLabel})</small>
+  </article>`;
+}
+
+function renderStudentClassComparison(studentId, period, classSnapshot) {
+  const student = studentById(studentId);
+  const snapshot = analyticsSnapshot(studentId, period);
+  return `
+    <section class="student-comparison-panel analytics-group-section">
+      <div class="selected-student-context"><strong>${escapeHtml(student?.name || "원생")}</strong><span>${escapeHtml(snapshot.enrollment?.className || "")} · ${snapshot.rangeLabel}</span></div>
+      <section class="grid four horizontal-metrics analytics-metrics student-comparison-metrics">
+        ${renderComparisonMetric("출석률", snapshot.attendanceRate, classSnapshot.attendanceRate, "%")}
+        ${renderComparisonMetric("과제 수행률", snapshot.homeworkRate, classSnapshot.homeworkRate, "%")}
+        ${renderComparisonMetric("평가 성취도", snapshot.latestScore, classSnapshot.averageScore, "점", "테스트 미사용")}
+        ${renderComparisonMetric("향상도", snapshot.scoreDelta, classSnapshot.averageDelta, "점", "자료 부족")}
+      </section>
+    </section>
   `;
 }
 
@@ -1843,19 +1963,32 @@ function renderAnalytics() {
   const period = ["weekly", "monthly", "cumulative"].includes(state.analyticsPeriod)
     ? state.analyticsPeriod
     : "monthly";
-  const snapshot = analyticsSnapshot(selectedId, period);
+  const classSnapshot = classAnalyticsSnapshot(className, period);
   return `
     <article class="panel analytics-control-panel">
-      <div class="panel-head">
-        <div><h2>${escapeHtml(studentById(selectedId)?.name)} 학습관리</h2><p>${escapeHtml(className)} · ${snapshot.rangeLabel}</p></div>
-        <div class="compact-filters">
-          <select id="analytics-class" aria-label="분석 반 선택">${classes.map((item) => `<option value="${escapeHtml(item)}" ${item === className ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select>
-          <select id="analytics-student" aria-label="분석 원생 선택">${enrollments.map((item) => `<option value="${item.studentId}" ${item.studentId === selectedId ? "selected" : ""}>${escapeHtml(studentById(item.studentId)?.name)}</option>`).join("")}</select>
+      <div class="panel-head analytics-control-head">
+        <div class="analytics-class-control">
+          <label for="analytics-class">반별 학습 분석 ·</label>
+          <select id="analytics-class" class="analytics-class-heading" aria-label="분석 반 선택">${classes.map((item) => `<option value="${escapeHtml(item)}" ${item === className ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select>
+          <p>(${classSnapshot.rangeLabel})</p>
         </div>
+        ${analyticsPeriodTabs(period)}
       </div>
-      ${analyticsPeriodTabs(period)}
     </article>
-    ${renderAnalyticsBody(selectedId, period)}
+    <section class="analytics-comparison-layout">
+      <section class="analytics-group-panel class-analytics-column">
+        <header class="analytics-group-head"><h2>반 전체 현황</h2><span class="badge green">${classSnapshot.students.length}명</span></header>
+        ${renderClassAnalyticsBody(className, period)}
+      </section>
+      <section class="analytics-group-panel student-analytics-column">
+        <header class="analytics-group-head">
+          <h2>원생별 분석</h2>
+          <select id="analytics-student" aria-label="분석 원생 선택">${enrollments.map((item) => `<option value="${item.studentId}" ${item.studentId === selectedId ? "selected" : ""}>${escapeHtml(studentById(item.studentId)?.name)}</option>`).join("")}</select>
+        </header>
+        ${renderStudentClassComparison(selectedId, period, classSnapshot)}
+        ${renderAnalyticsBody(selectedId, period, false)}
+      </section>
+    </section>
   `;
 }
 
@@ -2565,16 +2698,25 @@ function guardianMoaflowBenchmark(studentId, latest) {
         });
     });
   const scores = [...latestByStudent.values()].sort((a, b) => b - a);
-  const sampleMinimum = 30;
-  const eligible = Boolean(latest) && scores.length >= sampleMinimum;
-  const rank = eligible ? scores.findIndex((score) => score <= latest.percent) + 1 : null;
+  const averageMinimum = 2;
+  const rankingMinimum = 30;
+  const canAverage = Boolean(latest) && scores.length >= averageMinimum;
+  const canRank = Boolean(latest) && scores.length >= rankingMinimum;
+  const rank = canRank ? scores.findIndex((score) => score <= latest.percent) + 1 : null;
+  const sampleLevel = scores.length < averageMinimum
+    ? "single"
+    : scores.length < 5
+      ? "very_small"
+      : scores.length < rankingMinimum
+        ? "small"
+        : "sufficient";
   return {
     grade,
     subject,
     cohortSize: scores.length,
-    sampleMinimum,
-    average: eligible ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : null,
-    topPercent: eligible ? Math.max(1, Math.ceil((rank / scores.length) * 100)) : null
+    sampleLevel,
+    average: canAverage ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : null,
+    topPercent: canRank ? Math.max(1, Math.ceil((rank / scores.length) * 100)) : null
   };
 }
 
@@ -2860,9 +3002,9 @@ function renderGuardianGrowth() {
         <section class="moaflow-benchmark-section">
           <div class="subsection-head"><h3>MoaFlow 학습 비교</h3><span class="badge green">${escapeHtml(benchmark.grade)} · ${escapeHtml(benchmark.subject)}</span></div>
           <div class="grid four horizontal-metrics moaflow-benchmark-metrics">
-            ${metricCard("비교 학생", `${benchmark.cohortSize}명`, `${benchmark.sampleMinimum}명 이상부터 제공`, false, true)}
-            ${metricCard("평균", benchmark.average === null ? "표본 부족" : `${benchmark.average}점`, "동일 학년·과목", false, true)}
-            ${metricCard("상위", benchmark.topPercent === null ? "표본 부족" : `${benchmark.topPercent}%`, "동일 학년·과목", false, true)}
+            ${metricCard("비교 학생", `${benchmark.cohortSize}명`, benchmark.sampleLevel === "single" ? "평가 기록 1명" : benchmark.sampleLevel === "very_small" ? "소규모 표본 · 평균만 제공" : benchmark.sampleLevel === "small" ? "소규모 표본 참고용" : "충분한 비교 표본", false, true)}
+            ${metricCard("평균", benchmark.average === null ? "비교 불가" : `${benchmark.average}점`, benchmark.average === null ? "평가 기록 2명 이상 필요" : `동일 학년·과목${benchmark.sampleLevel === "sufficient" ? "" : " · 참고용"}`, false, true)}
+            ${metricCard("상위", benchmark.topPercent === null ? "비교 불가" : `${benchmark.topPercent}%`, benchmark.topPercent === null ? "30명 미만" : "동일 학년·과목", false, true)}
             ${metricCard("비교 기준", "최근 평가", "학생별 최신 성취도", false, true)}
           </div>
         </section>
@@ -3191,11 +3333,11 @@ function operatorSummary(metrics) {
 function pilotStatusLabel(status) {
   return (
     {
-      pending: "준비 중",
+      pending: "도입 준비",
       active: "운영 중",
       paused: "일시 중지",
-      completed: "종료"
-    }[status] || "준비 중"
+      completed: "운영 종료"
+    }[status] || "도입 준비"
   );
 }
 
@@ -3252,16 +3394,16 @@ function renderOperatorHome() {
             <option value="7" ${range.days === 7 ? "selected" : ""}>최근 7일</option>
             <option value="30" ${range.days === 30 ? "selected" : ""}>최근 30일</option>
           </select>
-          <button class="button tertiary compact" data-view-target="pilots">파일럿 관리</button>
+          <button class="button tertiary compact" data-view-target="pilots">학원 관리</button>
         </div>
       </div>
       <div class="table-wrap record-scroll">
         <table class="data-table">
-          <thead><tr><th>학원</th><th>전환 단계</th><th>출결 입력률</th><th>학습 입력률</th><th>조회율</th><th>미처리</th><th>파일럿</th></tr></thead>
+          <thead><tr><th>학원</th><th>전환 단계</th><th>출결 입력률</th><th>학습 입력률</th><th>조회율</th><th>미처리</th><th>운영 상태</th></tr></thead>
           <tbody>
             ${metrics.map((item) => {
               return `<tr>
-                <td><div class="cell-stack"><strong>${escapeHtml(item.academy.name)}</strong><small>최근 활동 ${formatDateTime(item.lastActivityAt)}</small></div></td>
+                <td><div class="cell-stack"><button class="academy-name-button" data-action="open-academy-info" data-academy-id="${item.academy.id}" aria-label="${escapeHtml(item.academy.name)} 등록 정보 보기">${escapeHtml(item.academy.name)}</button><small>최근 활동 ${formatDateTime(item.lastActivityAt)}</small></div></td>
                 <td><strong>${item.completedSteps}/5</strong></td>
                 <td>${item.attendanceRate}%</td>
                 <td>${item.learningRate}%</td>
@@ -3960,34 +4102,43 @@ function permissionLabel(key) {
 }
 
 function renderPilots() {
-  setPage("PILOT ACCOUNT", "파일럿 학원");
+  setPage("ACADEMY OPERATIONS", "학원 관리");
   const filter = state.operatorPilotFilter || "all";
   const academies = state.academies.filter(
     (academy) => filter === "all" || academy.pilotStatus === filter
   );
   return `
     <section class="grid four horizontal-metrics">
-      ${metricCard("전체 학원", state.academies.length, "파일럿 계정")}
+      ${metricCard("전체 학원", state.academies.length, "등록 학원")}
       ${metricCard("운영 중", state.academies.filter((item) => item.pilotStatus === "active").length, "")}
-      ${metricCard("준비 중", state.academies.filter((item) => item.pilotStatus === "pending").length, "")}
-      ${metricCard("확인 필요", state.academies.filter((item) => item.pilotStatus === "paused").length, "", true)}
+      ${metricCard("도입 준비", state.academies.filter((item) => item.pilotStatus === "pending").length, "")}
+      ${metricCard("일시 중지", state.academies.filter((item) => item.pilotStatus === "paused").length, "", true)}
     </section>
     <article class="panel">
       <div class="panel-head">
         <div><h2>학원 계정 상태</h2></div>
         <div class="compact-filters">
-          <select id="operator-pilot-filter" aria-label="파일럿 상태 필터">
+          <select id="operator-pilot-filter" aria-label="운영 상태 필터">
             <option value="all" ${filter === "all" ? "selected" : ""}>전체 상태</option>
-            <option value="pending" ${filter === "pending" ? "selected" : ""}>준비 중</option>
+            <option value="pending" ${filter === "pending" ? "selected" : ""}>도입 준비</option>
             <option value="active" ${filter === "active" ? "selected" : ""}>운영 중</option>
             <option value="paused" ${filter === "paused" ? "selected" : ""}>일시 중지</option>
-            <option value="completed" ${filter === "completed" ? "selected" : ""}>종료</option>
+            <option value="completed" ${filter === "completed" ? "selected" : ""}>운영 종료</option>
           </select>
         </div>
       </div>
       <div class="table-wrap record-scroll">
-        <table class="data-table">
-          <thead><tr><th>학원</th><th>연락처</th><th>등록일</th><th>원생</th><th>파일럿 상태</th><th>변경</th><th>학원 정보</th></tr></thead>
+        <table class="data-table academy-status-table">
+          <colgroup>
+            <col class="academy-status-col-name" />
+            <col class="academy-status-col-phone" />
+            <col class="academy-status-col-date" />
+            <col class="academy-status-col-students" />
+            <col class="academy-status-col-state" />
+            <col class="academy-status-col-change" />
+            <col class="academy-status-col-info" />
+          </colgroup>
+          <thead><tr><th>학원</th><th>연락처</th><th>등록일</th><th>원생</th><th>운영 상태</th><th>변경</th><th>학원 정보</th></tr></thead>
           <tbody>
             ${academies
               .map(
@@ -4000,7 +4151,7 @@ function renderPilots() {
                   <td><span class="badge ${pilotStatusTone(academy.pilotStatus)}">${pilotStatusLabel(academy.pilotStatus)}</span></td>
                   <td>
                     <div class="row-actions pilot-status-actions">
-                      <select data-pilot-status="${academy.id}" aria-label="${escapeHtml(academy.name)} 파일럿 상태">
+                      <select data-pilot-status="${academy.id}" aria-label="${escapeHtml(academy.name)} 운영 상태">
                         ${["pending", "active", "paused", "completed"].map((status) => `<option value="${status}" ${academy.pilotStatus === status ? "selected" : ""}>${pilotStatusLabel(status)}</option>`).join("")}
                       </select>
                       <button class="button tertiary compact" data-action="save-pilot-status" data-academy-id="${academy.id}">저장</button>
@@ -4072,7 +4223,7 @@ function showAcademyInfo(academyId) {
       <div><dt>주소</dt><dd>${escapeHtml(academy.address || "미등록")}</dd></div>
       <div><dt>등록일</dt><dd>${formatDateTime(academy.createdAt)}</dd></div>
       <div><dt>원생</dt><dd>${enrollmentCount}명</dd></div>
-      <div><dt>파일럿 상태</dt><dd><span class="badge ${pilotStatusTone(academy.pilotStatus)}">${pilotStatusLabel(academy.pilotStatus)}</span></dd></div>
+      <div><dt>운영 상태</dt><dd><span class="badge ${pilotStatusTone(academy.pilotStatus)}">${pilotStatusLabel(academy.pilotStatus)}</span></dd></div>
     </dl>
   `);
 }
@@ -4707,10 +4858,16 @@ function applyBulkAttendance(status) {
     toast("변경할 학생을 선택해주세요.", "error");
     return;
   }
+  const currentTime = koreaTime();
   selectedRows.forEach((checkbox) => {
     const studentId = checkbox.dataset.studentId;
     const select = document.querySelector(`[name="attendance-${studentId}"]`);
+    const arrivalTime = document.querySelector(`[name="arrival-${studentId}"]`);
     if (select) select.value = status;
+    if (["present", "late"].includes(status) && arrivalTime && !arrivalTime.value) {
+      arrivalTime.value = currentTime;
+    }
+    if (status === "absent" && arrivalTime) arrivalTime.value = "";
     if (status === "present") {
       const reason = document.querySelector(`[name="reason-${studentId}"]`);
       if (reason) reason.value = "";
@@ -5657,13 +5814,13 @@ function savePilotStatus(academyId) {
     "pilot.status_changed",
     "academy",
     academy.id,
-    `${academy.name} 파일럿 ${previous} → ${pilotStatusLabel(academy.pilotStatus)}`,
+    `${academy.name} 운영 상태 ${previous} → ${pilotStatusLabel(academy.pilotStatus)}`,
     academy.id
   );
   persistState();
   renderShell();
   renderView();
-  toast("파일럿 상태를 변경했습니다.");
+  toast("운영 상태를 변경했습니다.");
 }
 
 function createSupportRequest(event) {

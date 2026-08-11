@@ -351,6 +351,43 @@ test("출결관리 조작 영역은 같은 글자 크기를 사용한다", async
   await context.close();
 });
 
+test("선택 출결 처리는 상태별로 등원시간을 올바르게 반영한다", async () => {
+  const { context, page } = await openAs("usr-owner");
+  await navigateTo(page, "attendance");
+  const row = page.locator(".attendance-table tbody tr").first();
+  const rowCheck = row.locator(".attendance-row-check");
+  const arrivalTime = row.locator(".attendance-time");
+  const status = row.locator(".attendance-status-select");
+  const reason = row.locator(".attendance-reason");
+
+  await page.locator("#attendance-select-all").uncheck();
+  await rowCheck.check();
+  await arrivalTime.fill("");
+  await reason.fill("기존 사유");
+  await page.locator('[data-action="bulk-attendance"][data-status="present"]').click();
+  assert.match(await arrivalTime.inputValue(), /^\d{2}:\d{2}$/);
+  assert.equal(await status.inputValue(), "present");
+  assert.equal(await reason.inputValue(), "");
+
+  await arrivalTime.fill("12:34");
+  await page.locator('[data-action="bulk-attendance"][data-status="late"]').click();
+  assert.equal(await arrivalTime.inputValue(), "12:34");
+  assert.equal(await status.inputValue(), "late");
+
+  await page.locator('[data-action="bulk-attendance"][data-status="early_leave"]').click();
+  assert.equal(await arrivalTime.inputValue(), "12:34");
+  assert.equal(await status.inputValue(), "early_leave");
+
+  await page.locator('[data-action="bulk-attendance"][data-status="absent"]').click();
+  assert.equal(await arrivalTime.inputValue(), "");
+  assert.equal(await status.inputValue(), "absent");
+
+  await page.locator('[data-action="bulk-attendance"][data-status="late"]').click();
+  assert.match(await arrivalTime.inputValue(), /^\d{2}:\d{2}$/);
+  assert.equal(await status.inputValue(), "late");
+  await context.close();
+});
+
 test("테스트관리 조작 영역은 같은 글자 크기를 사용한다", async () => {
   const { context, page } = await openAs("usr-owner");
   await navigateTo(page, "tests");
@@ -684,16 +721,32 @@ test("운영자 오늘 입력률은 여러 날짜 기록이 있어도 100%를 �
   await context.close();
 });
 
-test("운영자는 기간별 입력·조회율과 파일럿 상태를 관리한다", async () => {
+test("운영자는 기간별 입력·조회율과 학원 운영 상태를 관리한다", async () => {
   const { context, page } = await openAs("usr-operator");
+  assert.equal(await page.locator("#context-label").textContent(), "");
+  assert.equal(await page.locator("#context-name").textContent(), "모아플로 운영");
+  assert.equal(await page.locator("#context-detail").textContent(), "등록 학원 수 2");
+  assert.deepEqual(
+    await page.locator(".workspace-context").evaluate((element) => ({
+      borderRadius: getComputedStyle(element).borderRadius,
+      boxShadow: getComputedStyle(element).boxShadow,
+      backgroundColor: getComputedStyle(element).backgroundColor
+    })),
+    { borderRadius: "0px", boxShadow: "none", backgroundColor: "rgba(0, 0, 0, 0)" }
+  );
   assert.equal(await page.locator("#page-title").textContent(), "운영 현황");
   assert.equal(await page.locator("#view-root > .hero-panel").count(), 0);
   assert.deepEqual(
     (await page.locator("#main-nav .nav-item").allTextContents()).map((item) => item.trim()),
-    ["운영 현황", "서비스 이용", "파일럿 학원", "오류·문의", "공통 데이터 구조", "전체 감사 이력"]
+    ["운영 현황", "서비스 이용", "학원 관리", "오류·문의", "공통 데이터 구조", "전체 감사 이력"]
   );
   assert.equal(await page.locator("#operator-metric-window").inputValue(), "7");
   assert.equal(await page.locator(".data-table tbody tr").count(), 2);
+  const homeAcademyRow = page.locator(".data-table tbody tr").filter({ hasText: "에듀수학학원" });
+  await homeAcademyRow.getByRole("button", { name: "에듀수학학원 등록 정보 보기" }).click();
+  assert.equal(await page.locator("#modal-title").textContent(), "에듀수학학원");
+  assert.match(await page.locator("#modal").innerText(), /대표자.*한도담.*사업자등록번호.*123-45-67890.*주요 프로그램.*중등 수학 심화·내신 대비.*주소.*서울시 마포구 월드컵로 12/s);
+  await page.locator('[data-action="close-modal"]').click();
   const rates = await page.locator(".horizontal-metrics .metric-card strong").allTextContents();
   assert.equal(rates.slice(1).every((value) => Number.parseInt(value, 10) <= 100), true);
 
@@ -702,6 +755,22 @@ test("운영자는 기간별 입력·조회율과 파일럿 상태를 관리한�
   assert.equal(await page.evaluate(() => state.operatorMetricWindow), "30");
 
   await navigateTo(page, "pilots");
+  assert.equal(
+    await page.locator(".academy-status-table").evaluate((table) => getComputedStyle(table).tableLayout),
+    "fixed"
+  );
+  assert.deepEqual(
+    await page.locator(".academy-status-table").evaluate((table) =>
+      [...table.querySelectorAll("col")].map((item) =>
+        Math.round((item.getBoundingClientRect().width / table.getBoundingClientRect().width) * 100)
+      )
+    ),
+    [15, 14, 17, 7, 12, 23, 12]
+  );
+  assert.equal(
+    await page.locator(".pilot-status-actions").first().evaluate((item) => getComputedStyle(item).marginLeft),
+    "0px"
+  );
   const dodamRow = page.locator(".data-table tbody tr").filter({ hasText: "에듀수학학원" });
   assert.equal(await dodamRow.locator("td").first().innerText(), "에듀수학학원");
   assert.doesNotMatch(await dodamRow.innerText(), /서울시 마포구 월드컵로 12/);
@@ -722,7 +791,7 @@ test("운영자는 기간별 입력·조회율과 파일럿 상태를 관리한�
     )
   }));
   assert.equal(result.status, "active");
-  assert.match(result.audit.summary, /준비 중 → 운영 중/);
+  assert.match(result.audit.summary, /운영 상태 도입 준비 → 운영 중/);
   assert.match(await bridgeRow.innerText(), /운영 중/);
   await context.close();
 });
@@ -909,6 +978,13 @@ test("운영자 주요 화면은 모바일에서 가로 넘침이 없다", async
   const { context, page } = await openAs("usr-operator", { width: 390, height: 844 });
   for (const view of ["home", "usage", "pilots", "support"]) {
     await page.locator(`[data-view="${view}"]`).evaluate((element) => element.click());
+    assert.equal(
+      await page.locator(".compact-filters select, .compact-filters input, .compact-filters .button").evaluateAll((items) =>
+        items.every((item) => item.getBoundingClientRect().height === 36)
+      ),
+      true,
+      `${view} 화면의 필터와 버튼 높이가 일치하지 않습니다.`
+    );
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth),
       false,
@@ -1232,11 +1308,69 @@ test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 �
   assert.equal(chartStartGap.firstPoint - chartStartGap.gridStart >= 40, true);
   assert.equal(await harinGrowth.locator(".growth-chart-records").count(), 0);
   assert.match(await harinGrowth.innerText(), /\+7점/);
-  assert.match(await harinGrowth.innerText(), /MoaFlow 학습 비교.*동일 학년·과목.*표본 부족/s);
+  assert.match(await harinGrowth.innerText(), /MoaFlow 학습 비교.*초등 6학년 · 수학.*비교 학생.*1명.*평가 기록 1명.*평균.*비교 불가.*상위.*비교 불가/s);
+  await page.evaluate(() => {
+    state.students.push({
+      id: "std-benchmark-peer",
+      name: "비교원생",
+      birthDate: studentById("std-harin").birthDate,
+      createdBy: "usr-owner",
+      createdAt: new Date().toISOString()
+    });
+    state.assessments.push({
+      id: "asm-benchmark-peer",
+      academyId: "acd-dodam",
+      className: "중등 수학 심화반",
+      subject: "수학",
+      title: "비교용 평가",
+      type: "weekly",
+      scope: "비교 범위",
+      testDate: "2026-07-19",
+      maxScore: 100,
+      attempts: [{
+        id: "atm-benchmark-peer",
+        studentId: "std-benchmark-peer",
+        attemptNo: 1,
+        status: "taken",
+        score: 79,
+        note: "",
+        recordedAt: "2026-07-19T18:00:00+09:00",
+        recordedBy: "usr-teacher"
+      }],
+      scoreHistory: [],
+      createdBy: "usr-teacher",
+      createdAt: "2026-07-19T18:00:00+09:00"
+    });
+    renderView();
+  });
+  assert.match(await harinGrowth.innerText(), /비교 학생.*2명.*소규모 표본 · 평균만 제공.*평균.*80점.*동일 학년·과목 · 참고용.*상위.*30명 미만/s);
+  await page.evaluate(() => {
+    const birthDate = studentById("std-harin").birthDate;
+    const attempts = Array.from({ length: 3 }, (_, index) => {
+      const studentId = `std-benchmark-small-${index}`;
+      state.students.push({ id: studentId, name: `소규모${index}`, birthDate, createdBy: "usr-owner", createdAt: new Date().toISOString() });
+      return { id: `atm-benchmark-small-${index}`, studentId, attemptNo: 1, status: "taken", score: 80, note: "", recordedAt: "2026-07-20T18:00:00+09:00", recordedBy: "usr-teacher" };
+    });
+    state.assessments.push({ id: "asm-benchmark-small", academyId: "acd-dodam", className: "중등 수학 심화반", subject: "수학", title: "소규모 비교", type: "weekly", scope: "비교 범위", testDate: "2026-07-20", maxScore: 100, attempts, scoreHistory: [], createdBy: "usr-teacher", createdAt: "2026-07-20T18:00:00+09:00" });
+    renderView();
+  });
+  assert.match(await harinGrowth.innerText(), /비교 학생.*5명.*소규모 표본 참고용.*평균.*80점.*상위.*30명 미만/s);
+  await page.evaluate(() => {
+    const birthDate = studentById("std-harin").birthDate;
+    const attempts = Array.from({ length: 25 }, (_, index) => {
+      const studentId = `std-benchmark-full-${index}`;
+      state.students.push({ id: studentId, name: `충분표본${index}`, birthDate, createdBy: "usr-owner", createdAt: new Date().toISOString() });
+      return { id: `atm-benchmark-full-${index}`, studentId, attemptNo: 1, status: "taken", score: 80, note: "", recordedAt: "2026-07-21T18:00:00+09:00", recordedBy: "usr-teacher" };
+    });
+    state.assessments.push({ id: "asm-benchmark-full", academyId: "acd-dodam", className: "중등 수학 심화반", subject: "수학", title: "충분 표본 비교", type: "weekly", scope: "비교 범위", testDate: "2026-07-21", maxScore: 100, attempts, scoreHistory: [], createdBy: "usr-teacher", createdAt: "2026-07-21T18:00:00+09:00" });
+    renderView();
+  });
+  assert.match(await harinGrowth.innerText(), /비교 학생.*30명.*충분한 비교 표본.*평균.*80점.*상위.*4%/s);
   assert.equal(await page.locator('input[name="guardian-growth-student"][value="std-harin"]').isChecked(), true);
   await page.locator('.guardian-growth-option:has(input[value="std-minjun"])').click();
   const minjunGrowth = page.locator(".guardian-growth-card");
   assert.match(await minjunGrowth.innerText(), /정민준 성장 리포트.*연결 학원 2곳/s);
+  assert.match(await minjunGrowth.innerText(), /MoaFlow 학습 비교.*중등 2학년 · 수학.*비교 학생.*1명.*평가 기록 1명.*평균.*비교 불가.*상위.*비교 불가/s);
   assert.equal(await minjunGrowth.locator(".growth-chart-tabs button").count(), 3);
   assert.equal(await minjunGrowth.locator(".growth-chart.multi-line-chart .growth-chart-point").count(), 5);
   assert.equal(await minjunGrowth.locator(".growth-chart-line").count(), 1);
@@ -1262,6 +1396,13 @@ test("학부모는 여러 학원 타임라인과 성장·코멘트·알림을 �
     await page.screenshot({ path: path.join(process.env.QA_SCREENSHOT_DIR, "guardian-growth-line-desktop.png"), fullPage: true });
   }
   await minjunGrowth.locator('[data-action="select-growth-academy"][data-academy-id="all"]').click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".workspace").evaluate((element) => element.classList.remove("nav-open"));
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth),
+    false
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
   if (process.env.QA_SCREENSHOT_DIR) {
     await page.waitForTimeout(3500);
     await page.screenshot({ path: path.join(process.env.QA_SCREENSHOT_DIR, "guardian-growth-desktop.png"), fullPage: true });
@@ -1872,7 +2013,7 @@ test("원생 상세 분석과 반별 학생 필터가 같은 집계를 사용한
     1
   );
   assert.match(await detailAnalytics.locator(".student-recent-learning").innerText(), /개념원리 중2-1/);
-  assert.equal(await detailAnalytics.getByText("자동 생성 요약", { exact: true }).count(), 0);
+  assert.equal(await detailAnalytics.getByText("학습 현황 요약", { exact: true }).count(), 0);
   assert.equal(await detailAnalytics.getByText("상담 후속조치", { exact: true }).count(), 0);
   await detailAnalytics.locator('[data-action="analytics-period"][data-period="cumulative"]').click();
   assert.match(
@@ -1903,10 +2044,10 @@ test("원생 상세 분석과 반별 학생 필터가 같은 집계를 사용한
   await navigateTo(page, "analytics");
 
   assert.deepEqual(
-    await page.locator(".analytics-control-panel .compact-filters select").evaluateAll((items) =>
+    await page.locator(".analytics-control-panel select").evaluateAll((items) =>
       items.map((item) => item.id)
     ),
-    ["analytics-class", "analytics-student"]
+    ["analytics-class"]
   );
   assert.deepEqual(
     await page.locator("#analytics-student option").evaluateAll((items) =>
@@ -1915,8 +2056,8 @@ test("원생 상세 분석과 반별 학생 필터가 같은 집계를 사용한
     ["std-minjun", "std-harin"]
   );
   assert.deepEqual(
-    await page.locator("#view-root > .horizontal-metrics .metric-card strong").allTextContents(),
-    detailMetrics
+    (await page.locator(".student-comparison-metrics .metric-card strong").allTextContents()).slice(0, 2),
+    detailMetrics.slice(0, 2)
   );
   assert.equal(await page.getByText("상담 후속조치", { exact: true }).count(), 0);
 
@@ -1936,6 +2077,144 @@ test("원생 상세 분석과 반별 학생 필터가 같은 집계를 사용한
     ["std-minjun", "std-harin"]
   );
   await context.close();
+});
+
+test("학습분석은 반 통계와 선택 원생 비교를 한 화면에 표시한다", async () => {
+  const { context, page } = await openAs("usr-owner");
+  await navigateTo(page, "analytics");
+  await page.locator('[data-action="analytics-period"][data-period="cumulative"]').click();
+
+  assert.equal(await page.locator(".analytics-class-heading").inputValue(), "중등 수학 심화반");
+  assert.deepEqual(
+    await page.locator(".analytics-class-heading").evaluate((item) => ({
+      fontSize: getComputedStyle(item).fontSize,
+      borderStyle: getComputedStyle(item).borderStyle,
+      optionFontSize: getComputedStyle(item.options[0]).fontSize
+    })),
+    { fontSize: "16px", borderStyle: "solid", optionFontSize: "13px" }
+  );
+  assert.equal(await page.locator(".analytics-class-control label").textContent(), "반별 학습 분석 ·");
+  assert.match(await page.locator(".analytics-class-control p").textContent(), /^\(.+\)$/);
+  assert.equal(
+    await page.locator(".analytics-class-control").evaluate((item) => getComputedStyle(item).display),
+    "flex"
+  );
+  const desktopHeaderCenters = await page.locator(".analytics-class-control > *").evaluateAll((items) =>
+    items.map((item) => {
+      const rect = item.getBoundingClientRect();
+      return Math.round(rect.top + rect.height / 2);
+    })
+  );
+  assert.ok(Math.max(...desktopHeaderCenters) - Math.min(...desktopHeaderCenters) < 3);
+  assert.equal(await page.locator(".analytics-control-head > .period-tabs").count(), 1);
+  assert.equal(await page.locator(".analytics-control-panel > .period-tabs").count(), 0);
+  assert.doesNotMatch(await page.locator(".analytics-class-control p").textContent(), /중등 수학 심화반/);
+  assert.equal(await page.locator('[data-action="analytics-mode"]').count(), 0);
+  assert.equal(await page.locator("#analytics-student").count(), 1);
+  assert.deepEqual(
+    await page.locator(".analytics-group-panel > .analytics-group-head h2").allTextContents(),
+    ["반 전체 현황", "원생별 분석"]
+  );
+  assert.equal(await page.locator(".analytics-group-panel").count(), 2);
+  assert.equal(await page.locator(".student-analytics-column > .analytics-summary-panel").count(), 1);
+  assert.equal(await page.locator("#view-root > .analytics-summary-panel").count(), 0);
+  assert.equal(
+    await page.locator(".analytics-summary-panel .analysis-list").evaluate((item) =>
+      getComputedStyle(item).marginTop
+    ),
+    "14px"
+  );
+  assert.deepEqual(
+    await page.locator(".analytics-group-panel .metric-card").evaluateAll((items) =>
+      [...new Set(items.map((item) => getComputedStyle(item).boxShadow))]
+    ),
+    ["none"]
+  );
+  const desktopColumns = await page.locator(".analytics-comparison-layout").evaluate((item) =>
+    getComputedStyle(item).gridTemplateColumns.split(" ").map(parseFloat)
+  );
+  assert.ok(desktopColumns[0] / (desktopColumns[0] + desktopColumns[1]) > 0.44);
+  assert.ok(desktopColumns[0] / (desktopColumns[0] + desktopColumns[1]) < 0.46);
+  const groupBottoms = await page.locator(".analytics-group-panel").evaluateAll((items) =>
+    items.map((item) => Math.round(item.getBoundingClientRect().bottom))
+  );
+  assert.ok(Math.abs(groupBottoms[0] - groupBottoms[1]) <= 1);
+  const firstSectionTops = await page.locator(".analytics-group-panel").evaluateAll((items) =>
+    items.map((item) => Math.round(item.querySelector(".analytics-group-section").getBoundingClientRect().top))
+  );
+  assert.ok(Math.abs(firstSectionTops[0] - firstSectionTops[1]) <= 1);
+  assert.equal(
+    await page.locator(".class-analytics-panel .class-score-distribution").evaluate((item) =>
+      getComputedStyle(item).gridAutoRows
+    ),
+    "1fr"
+  );
+  assert.deepEqual(
+    await page.locator(".class-analytics-metrics .metric-card span").allTextContents(),
+    ["평균 점수", "과제 수행률", "출석률", "평균 향상도"]
+  );
+  assert.deepEqual(
+    await page.locator(".class-analytics-metrics .metric-card strong").allTextContents(),
+    ["79점", "50%", "100%", "+13점"]
+  );
+  assert.deepEqual(
+    await page.locator(".score-distribution-item strong").allTextContents(),
+    ["0명", "1명", "1명", "0명"]
+  );
+  assert.deepEqual(
+    await page.locator(".student-comparison-metrics .metric-card > span").allTextContents(),
+    ["출석률", "과제 수행률", "평가 성취도", "향상도"]
+  );
+  assert.deepEqual(
+    await page.locator(".student-comparison-metrics .metric-card strong").allTextContents(),
+    ["100%", "100%", "76점", "자료 부족"]
+  );
+  assert.deepEqual(
+    await page.locator(".student-comparison-metrics .comparison-summary").allTextContents(),
+    ["반 기준 100% (동일)", "반 기준 50% (+50%p)", "반 기준 79점 (-3점)", "반 기준 +13점 (비교 자료 부족)"]
+  );
+  assert.deepEqual(
+    await page.locator(".student-comparison-metrics .comparison-summary").evaluateAll((items) =>
+      items.map((item) => getComputedStyle(item).whiteSpace)
+    ),
+    ["nowrap", "nowrap", "nowrap", "nowrap"]
+  );
+  await page.locator("#analytics-student").selectOption("std-harin");
+  assert.deepEqual(
+    await page.locator(".student-comparison-metrics .metric-card strong").allTextContents(),
+    ["100%", "0%", "81점", "+13점"]
+  );
+  assert.deepEqual(
+    await page.locator(".student-comparison-metrics .comparison-summary").allTextContents(),
+    ["반 기준 100% (동일)", "반 기준 50% (-50%p)", "반 기준 79점 (+2점)", "반 기준 +13점 (동일)"]
+  );
+  await context.close();
+
+  const instructor = await openAs("usr-teacher", { width: 390, height: 844 });
+  await instructor.page.locator("#mobile-nav-toggle").click();
+  await navigateTo(instructor.page, "analytics");
+  assert.equal(await instructor.page.locator(".class-analytics-metrics .metric-card").count(), 4);
+  assert.equal(await instructor.page.locator(".student-comparison-metrics .metric-card").count(), 4);
+  assert.equal(
+    await instructor.page.locator(".analytics-comparison-layout").evaluate((item) =>
+      getComputedStyle(item).gridTemplateColumns.split(" ").length
+    ),
+    1
+  );
+  assert.ok(
+    await instructor.page.locator(".analytics-class-control").evaluate((item) => {
+      const selector = item.querySelector("select").getBoundingClientRect();
+      const period = item.querySelector("p").getBoundingClientRect();
+      return period.top >= selector.bottom;
+    })
+  );
+  assert.equal(
+    await instructor.page.evaluate(() =>
+      document.documentElement.scrollWidth > document.documentElement.clientWidth
+    ),
+    false
+  );
+  await instructor.context.close();
 });
 
 test("원생 상세에서 권한에 따라 상담 이력을 확인하고 관리한다", async () => {

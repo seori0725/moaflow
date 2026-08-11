@@ -534,7 +534,8 @@ textarea {
 
 body[data-role="academy_owner"] .workspace-context,
 body[data-role="academy_instructor"] .workspace-context,
-body[data-role="guardian"] .workspace-context {
+body[data-role="guardian"] .workspace-context,
+body[data-role="operator"] .workspace-context {
   min-height: 0;
   margin-bottom: 30px;
   padding: 10px 4px 22px;
@@ -587,7 +588,8 @@ body[data-role="guardian"] .workspace-context {
   gap: 5px;
 }
 
-body[data-role="guardian"] .workspace-context strong {
+body[data-role="guardian"] .workspace-context strong,
+body[data-role="operator"] .workspace-context strong {
   font-size: 16px;
   letter-spacing: -0.2px;
   text-align: left;
@@ -1523,6 +1525,28 @@ body[data-role="guardian"] .workspace-context strong {
   font-size: 12px;
 }
 
+.academy-name-button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(31, 150, 177, 0.38);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.academy-name-button:hover,
+.academy-name-button:focus-visible {
+  color: var(--primary);
+  text-decoration-color: currentColor;
+}
+
 .cell-stack small {
   color: var(--ink-muted);
   font-size: 10px;
@@ -1962,6 +1986,14 @@ body[data-role="guardian"] .workspace-context strong {
   min-width: 160px;
 }
 
+body[data-role="operator"] .compact-filters select,
+body[data-role="operator"] .compact-filters input {
+  min-height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12px;
+}
+
 .nav-item.nested {
   min-height: 38px;
   padding-left: 16px;
@@ -1979,12 +2011,52 @@ body[data-role="guardian"] .workspace-context strong {
 }
 
 .pilot-status-actions {
+  margin-left: 0;
   flex-wrap: nowrap;
 }
 
 .pilot-status-actions select {
   width: 112px;
   min-width: 112px;
+}
+
+.academy-status-table {
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.academy-status-table .academy-status-col-name {
+  width: 15%;
+}
+
+.academy-status-table .academy-status-col-phone {
+  width: 14%;
+}
+
+.academy-status-table .academy-status-col-date {
+  width: 17%;
+}
+
+.academy-status-table .academy-status-col-students {
+  width: 7%;
+}
+
+.academy-status-table .academy-status-col-state {
+  width: 12%;
+}
+
+.academy-status-table .academy-status-col-change {
+  width: 23%;
+}
+
+.academy-status-table .academy-status-col-info {
+  width: 12%;
+}
+
+.academy-status-table th,
+.academy-status-table td {
+  padding-right: 14px;
+  padding-left: 14px;
 }
 
 .academy-info-list dd {
@@ -2490,16 +2562,230 @@ body[data-role="guardian"] .workspace-context strong {
 }
 
 .analytics-control-panel {
-  padding-bottom: 14px;
+  padding-bottom: 20px;
 }
 
 .analytics-control-panel .panel-head {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .analytics-control-panel select {
   width: auto;
   min-width: 180px;
+}
+
+.analytics-class-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.analytics-class-control label {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.analytics-control-panel .analytics-class-heading {
+  min-width: 240px;
+  min-height: 40px;
+  padding: 7px 36px 7px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--ink);
+  background-color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.analytics-control-panel .analytics-class-heading:hover {
+  border-color: var(--primary);
+  background-color: var(--ice);
+}
+
+.analytics-control-panel .analytics-class-heading option {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.analytics-class-control p {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.analytics-control-head .period-tabs {
+  align-self: center;
+  justify-content: flex-end;
+}
+
+.class-score-distribution {
+  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.analytics-comparison-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.class-analytics-column,
+.student-analytics-column {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 20px;
+}
+
+.analytics-group-panel {
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.class-analytics-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.class-analytics-panel .class-score-distribution {
+  min-height: 0;
+  margin-bottom: 0;
+  grid-auto-rows: 1fr;
+}
+
+.analytics-group-head {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analytics-group-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.analytics-group-head select {
+  width: auto;
+  min-width: 160px;
+}
+
+.analytics-group-section {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.analytics-group-panel .metric-card {
+  box-shadow: none;
+}
+
+.analytics-comparison-layout .horizontal-metrics.grid.four,
+.class-analytics-column .class-score-distribution {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.score-distribution-item {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--page);
+}
+
+.score-distribution-item > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.score-distribution-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.score-distribution-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.score-distribution-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.student-comparison-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.selected-student-context {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.selected-student-context strong {
+  font-size: 18px;
+}
+
+.selected-student-context span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.student-comparison-metrics {
+  margin-bottom: 0;
+}
+
+.analytics-summary-panel .analysis-list,
+.analytics-summary-panel .empty-state {
+  margin-top: 14px;
+}
+
+.comparison-metric-card {
+  align-content: start;
+}
+
+.comparison-summary {
+  width: fit-content;
+  padding: 4px 8px;
+  white-space: nowrap;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.comparison-summary.positive {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.comparison-summary.negative {
+  color: var(--orange);
+  background: var(--orange-soft);
+}
+
+.comparison-summary.neutral {
+  color: var(--muted);
+  background: var(--page);
 }
 
 .period-tabs {
@@ -3200,6 +3486,7 @@ body[data-role="guardian"] .workspace-context strong {
 }
 
 .guardian-growth-option {
+  position: relative;
   min-width: 152px;
   padding: 12px 15px;
   display: flex;
@@ -3219,6 +3506,10 @@ body[data-role="guardian"] .workspace-context strong {
 
 .guardian-growth-option input {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 1px;
+  padding: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -4276,6 +4567,10 @@ body[data-role="guardian"] .workspace-context strong {
     grid-template-columns: 1fr;
   }
 
+  .analytics-comparison-layout {
+    grid-template-columns: 1fr;
+  }
+
 }
 
 @media (max-width: 760px) {
@@ -4546,6 +4841,42 @@ body[data-role="guardian"] .workspace-context strong {
 
   .analytics-control-panel select {
     width: 100%;
+  }
+
+  .analytics-class-control {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .analytics-control-panel .analytics-class-heading {
+    min-width: 0;
+  }
+
+  .analytics-class-control p {
+    grid-column: 1 / -1;
+  }
+
+  .analytics-control-head .period-tabs {
+    width: 100%;
+  }
+
+  .analytics-control-head .period-tabs .tab-button {
+    flex: 1;
+  }
+
+  .analytics-comparison-layout .horizontal-metrics.grid.four {
+    grid-template-columns: 1fr;
+  }
+
+  .class-score-distribution {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .selected-student-context {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .class-change-control,

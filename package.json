@@ -5,7 +5,8 @@
   "scripts": {
     "prepare:hosting": "node scripts/prepare-firebase-hosting.cjs",
     "start": "node server.cjs",
-    "test": "node --test tests/core-flow.test.cjs"
+    "test": "node --test tests/core-flow.test.cjs",
+    "test:qa": "node --test tests/large-scale-qa.test.cjs"
   },
   "devDependencies": {
     "playwright": "1.61.1"

@@ -630,7 +630,10 @@ const instructorNavigationGroups = [
   }
 ];
 
-let state = loadState();
+const qaMode = ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+  new URLSearchParams(window.location.search).get("qa") === "large" &&
+  Boolean(window.MoaFlowQaData?.createLargeQaState);
+let state = qaMode ? window.MoaFlowQaData.createLargeQaState(initialState) : loadState();
 let session = loadSession();
 let selectedAuthRole = "academy_owner";
 let verificationInterval = null;
@@ -804,6 +807,7 @@ function loadSession() {
 }
 
 function persistState() {
+  if (qaMode) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -6315,6 +6319,11 @@ document.querySelector("#continue-to-phone").addEventListener("click", showPhone
 document.querySelector("#back-to-role").addEventListener("click", showRoleStep);
 document.querySelector("#request-code").addEventListener("click", requestVerification);
 document.querySelector("#auth-phone-step").addEventListener("submit", completeLogin);
+if (qaMode) {
+  const qaBanner = document.querySelector("#qa-mode-banner");
+  qaBanner.classList.remove("hidden");
+  qaBanner.textContent = `QA 가상 데이터 · 학원 ${state.qaMetadata.academyCount} · 원생 ${state.qaMetadata.studentCount} · 학부모 ${state.qaMetadata.guardianCount} · ${state.qaMetadata.periodStart}~${state.qaMetadata.periodEnd}`;
+}
 document.querySelector("#sign-out").addEventListener("click", signOut);
 document.querySelector("#mobile-nav-toggle").addEventListener("click", () => document.querySelector("#workspace").classList.toggle("nav-open"));
 document.querySelector("#modal-backdrop").addEventListener("click", (event) => {

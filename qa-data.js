@@ -438,5 +438,361 @@
     };
   }
 
-  window.MoaFlowQaData = { createLargeQaState };
+  function createPresentationDemoState(baseState) {
+    const today = new Date();
+    const baseDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const currentMonth = dateOnly(baseDate).slice(0, 7);
+    const shiftMonth = (monthStr, offset) => {
+      const [year, month] = monthStr.split("-").map(Number);
+      const shifted = new Date(Date.UTC(year, month - 1 + offset, 1));
+      return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}`;
+    };
+    const monthDate = (monthStr, day) => `${monthStr}-${pad(day)}`;
+    const prevMonth1 = shiftMonth(currentMonth, -1);
+    const prevMonth2 = shiftMonth(currentMonth, -2);
+
+    const owner = { id: "demo-owner-1", name: "김도윤 원장", phone: "010-1234-5678", role: "academy_owner", status: "active" };
+    const instructor = { id: "demo-teacher-1", name: "이서연 강사", phone: "010-2222-3333", role: "academy_instructor", status: "active" };
+    const guardian = { id: "demo-guardian-1", name: "송지호 학부모", phone: "010-9876-5432", role: "guardian", status: "active" };
+    const operator = { id: "demo-operator-1", name: "모아플로 운영", phone: "010-0000-0000", role: "operator", status: "active" };
+
+    const academy = {
+      id: "demo-acd-1",
+      name: "모아플로 데모학원",
+      ownerUserId: owner.id,
+      businessRegistrationNumber: "123-45-67890",
+      phone: "02-1234-5678",
+      mainProgram: "수학·영어 중심 초중등 맞춤 학습",
+      address: "서울특별시 강남구 모아로 15",
+      pilotStatus: "active",
+      createdAt: atTime(addDays(baseDate, -180), "09:00:00")
+    };
+
+    const students = [
+      { id: "demo-student-1", name: "송이안", birthDate: "2014-03-11", createdBy: owner.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") },
+      { id: "demo-student-2", name: "송민재", birthDate: "2016-07-22", createdBy: owner.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") }
+    ];
+
+    const enrollments = [
+      { id: "demo-enrollment-1", academyId: academy.id, studentId: students[0].id, className: "수학 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] },
+      { id: "demo-enrollment-2", academyId: academy.id, studentId: students[1].id, className: "영어 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] }
+    ];
+
+    const staffMemberships = [
+      { id: "demo-stm-owner-1", academyId: academy.id, userId: owner.id, role: "academy_owner", grants: [], status: "active" },
+      { id: "demo-stm-teacher-1", academyId: academy.id, userId: instructor.id, role: "academy_instructor", grants: ["student.manage"], status: "active" }
+    ];
+    const staffClassAssignments = [
+      { id: "demo-assignment-1", academyId: academy.id, userId: instructor.id, className: "수학 1반" },
+      { id: "demo-assignment-2", academyId: academy.id, userId: instructor.id, className: "영어 1반" }
+    ];
+
+    const guardianLinks = [
+      { id: "demo-link-1", guardianUserId: guardian.id, studentId: students[0].id, academyId: academy.id, relationship: "부모", status: "verified", verifiedAt: atTime(addDays(baseDate, -150), "14:30:00") },
+      { id: "demo-link-2", guardianUserId: guardian.id, studentId: students[1].id, academyId: academy.id, relationship: "부모", status: "verified", verifiedAt: atTime(addDays(baseDate, -150), "14:30:00") }
+    ];
+    const consents = guardianLinks.map((link, index) => ({
+      id: `demo-consent-${index + 1}`,
+      guardianUserId: link.guardianUserId,
+      studentId: link.studentId,
+      academyId: link.academyId,
+      type: "guardian_link",
+      version: "2026.08",
+      status: "granted",
+      method: "phone_verification",
+      grantedAt: link.verifiedAt
+    }));
+
+    const attendanceRecords = [];
+    const learningRecords = [];
+    const homeworkAssignments = [];
+    const assessments = [];
+    const testSettings = enrollments.map((enrollment, index) => ({
+      id: `demo-test-setting-${index + 1}`,
+      academyId: enrollment.academyId,
+      className: enrollment.className,
+      subject: enrollment.className.split(" ")[0],
+      frequency: "weekly_monthly",
+      averageVisibility: "guardian",
+      updatedBy: owner.id,
+      updatedAt: atTime(addDays(baseDate, -2), "11:00:00")
+    }));
+    enrollments.forEach((enrollment, enrollmentIndex) => {
+      for (let week = 0; week < 5; week += 1) {
+        const lessonDate = addDays(baseDate, -(week * 7) - 1);
+        learningRecords.push({
+          id: `demo-learning-${enrollmentIndex + 1}-${week + 1}`,
+          academyId: enrollment.academyId,
+          className: enrollment.className,
+          lessonDate: dateOnly(lessonDate),
+          textbook: `${enrollment.className.split(" ")[0]} 개념서 ${1 + (week % 3)}`,
+          unit: `${week + 1}주차 핵심 단원`,
+          pages: `${20 + week * 4}~${23 + week * 4}쪽`,
+          content: "핵심 개념 설명과 유형별 문제 풀이를 진행했습니다.",
+          homework: "수업 복습 문제와 오답 정리",
+          specialNotes: week === 0 ? "다음 시간 단원평가 예정" : "",
+          nextPlan: "다음 단원 개념과 응용 문제 학습",
+          createdBy: owner.id,
+          createdAt: atTime(lessonDate, "18:10:00")
+        });
+        homeworkAssignments.push({
+          id: `demo-homework-${enrollmentIndex + 1}-${week + 1}`,
+          academyId: enrollment.academyId,
+          className: enrollment.className,
+          assignedDate: dateOnly(lessonDate),
+          title: `${week + 1}주차 복습 과제`,
+          statuses: [{ studentId: enrollment.studentId, status: week === 1 ? "partial" : "completed", note: "" }],
+          createdBy: owner.id,
+          createdAt: atTime(lessonDate, "18:15:00")
+        });
+        attendanceRecords.push({
+          id: `demo-attendance-${enrollmentIndex + 1}-${week + 1}`,
+          academyId: enrollment.academyId,
+          studentId: enrollment.studentId,
+          className: enrollment.className,
+          lessonDate: dateOnly(lessonDate),
+          status: week === 2 ? "late" : "present",
+          arrivalTime: week === 2 ? "16:12" : "15:58",
+          reason: week === 2 ? "교통 지연" : "",
+          checkedAt: atTime(lessonDate, week === 2 ? "16:12:00" : "15:58:00"),
+          checkedBy: owner.id,
+          history: []
+        });
+        if (week % 2 === 0) {
+          const assessmentDate = addDays(lessonDate, 2);
+          assessments.push({
+            id: `demo-assessment-${enrollmentIndex + 1}-${week + 1}`,
+            academyId: enrollment.academyId,
+            className: enrollment.className,
+            subject: enrollment.className.split(" ")[0],
+            title: `${week + 1}주차 ${enrollment.className.split(" ")[0]} 평가`,
+            type: "weekly",
+            scope: `${week + 1}주차 학습 범위`,
+            testDate: dateOnly(assessmentDate),
+            maxScore: 100,
+            attempts: [{ id: `demo-attempt-${enrollmentIndex + 1}-${week + 1}`, studentId: enrollment.studentId, attemptNo: 1, status: "taken", score: 78 + enrollmentIndex * 6 + week, note: "", recordedAt: atTime(assessmentDate, "18:00:00"), recordedBy: owner.id }],
+            scoreHistory: [],
+            createdBy: owner.id,
+            createdAt: atTime(assessmentDate, "18:00:00")
+          });
+        }
+      }
+    });
+
+    const consultationRecords = [{
+      id: "demo-consultation-1",
+      academyId: academy.id,
+      studentId: students[0].id,
+      consultationDate: dateOnly(addDays(baseDate, -14)),
+      type: "guardian",
+      internalMemo: "최근 수업 참여도와 과제 수행 흐름을 확인했습니다.",
+      nextAction: "다음 평가 후 학습 계획을 다시 점검합니다.",
+      guardianSummary: "학습 진도와 보완할 내용을 보호자에게 안내했습니다.",
+      createdBy: owner.id,
+      createdAt: atTime(addDays(baseDate, -14), "17:40:00")
+    }];
+    const guardianCommentReplies = [{
+      id: "demo-reply-1",
+      consultationId: consultationRecords[0].id,
+      academyId: academy.id,
+      studentId: students[0].id,
+      authorUserId: owner.id,
+      authorRole: "academy",
+      body: "안내 내용을 확인했습니다.",
+      createdAt: atTime(addDays(baseDate, -13), "15:37:00")
+    }];
+
+    const usageEvents = [
+      { id: "demo-usage-1", academyId: academy.id, userId: owner.id, type: "academy.analytics_viewed", createdAt: atTime(addDays(baseDate, -3), "17:20:00") },
+      { id: "demo-usage-2", academyId: academy.id, userId: guardian.id, type: "guardian.home_viewed", createdAt: atTime(addDays(baseDate, -1), "20:10:00") }
+    ];
+    const supportRequests = [{
+      id: "demo-support-1",
+      academyId: academy.id,
+      type: "inquiry",
+      status: "resolved",
+      title: "결제 알림 문자 발송 문의",
+      detail: "학부모에게 결제 알림이 정상적으로 발송되는지 확인 요청드립니다.",
+      reporterName: academy.name,
+      assigneeUserId: operator.id,
+      resolution: "정상 발송 확인 후 안내했습니다.",
+      createdAt: atTime(addDays(baseDate, -10), "10:20:00"),
+      updatedAt: atTime(addDays(baseDate, -9), "13:10:00"),
+      history: []
+    }];
+
+    const billingPolicies = [{
+      id: `bill-policy-${academy.id}`,
+      academyId: academy.id,
+      scheduleType: "fixed_monthly",
+      billingTiming: "month_start",
+      billingDay: 1,
+      dueDays: 7,
+      allowedMethods: ["card", "virtual_account"],
+      autoNotify: true,
+      reminderDays: [3, 0],
+      overdueReminderDays: 3,
+      active: true,
+      updatedAt: atTime(addDays(baseDate, -30), "09:00:00")
+    }];
+    const tuitionPlans = [
+      { id: "demo-tuition-1", academyId: academy.id, className: "수학 1반", amount: 200000, active: true },
+      { id: "demo-tuition-2", academyId: academy.id, className: "영어 1반", amount: 180000, active: true }
+    ];
+
+    const invoices = [];
+    const payments = [];
+    [prevMonth2, prevMonth1].forEach((billingMonth) => {
+      enrollments.forEach((enrollment, index) => {
+        const plan = tuitionPlans[index];
+        const paidAt = `${monthDate(billingMonth, 5)}T11:20:00+09:00`;
+        const invoice = {
+          id: `demo-invoice-${index + 1}-${billingMonth}`,
+          academyId: enrollment.academyId,
+          guardianUserId: guardian.id,
+          studentId: enrollment.studentId,
+          enrollmentId: enrollment.id,
+          billingMonth,
+          amount: plan.amount,
+          issuedAt: `${monthDate(billingMonth, 1)}T09:00:00+09:00`,
+          dueDate: monthDate(billingMonth, 8),
+          status: "paid",
+          paidAmount: plan.amount,
+          paidAt,
+          paymentMethod: index === 0 ? "virtual_account" : "card",
+          updatedAt: paidAt
+        };
+        invoices.push(invoice);
+        payments.push({
+          id: `demo-payment-${invoice.id}`,
+          batchId: `demo-batch-${invoice.id}`,
+          invoiceIds: [invoice.id],
+          academyId: invoice.academyId,
+          guardianUserId: invoice.guardianUserId,
+          method: invoice.paymentMethod,
+          provider: invoice.paymentMethod === "card" ? "MOCK_CARD" : "KCP_VIRTUAL_ACCOUNT_MOCK",
+          amount: invoice.amount,
+          status: "paid",
+          transactionId: `DEMO-${billingMonth.replace("-", "")}-${index + 1}`,
+          paidAt: invoice.paidAt,
+          createdAt: invoice.paidAt
+        });
+      });
+    });
+    invoices.push({
+      id: `demo-invoice-1-${currentMonth}`,
+      academyId: academy.id,
+      guardianUserId: guardian.id,
+      studentId: students[0].id,
+      enrollmentId: enrollments[0].id,
+      billingMonth: currentMonth,
+      amount: tuitionPlans[0].amount,
+      issuedAt: `${monthDate(currentMonth, 1)}T09:00:00+09:00`,
+      dueDate: monthDate(currentMonth, 28),
+      status: "issued",
+      paidAmount: 130000,
+      paidAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`,
+      paymentMethod: "virtual_account",
+      updatedAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`
+    });
+    payments.push({
+      id: `demo-payment-partial-${currentMonth}`,
+      batchId: `demo-batch-partial-${currentMonth}`,
+      invoiceIds: [`demo-invoice-1-${currentMonth}`],
+      academyId: academy.id,
+      guardianUserId: guardian.id,
+      method: "virtual_account",
+      provider: "KCP_VIRTUAL_ACCOUNT_MOCK",
+      amount: 130000,
+      status: "paid",
+      transactionId: `DEMO-PARTIAL-${currentMonth.replace("-", "")}`,
+      paidAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`,
+      createdAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`
+    });
+    invoices.push({
+      id: `demo-invoice-2-${currentMonth}`,
+      academyId: academy.id,
+      guardianUserId: guardian.id,
+      studentId: students[1].id,
+      enrollmentId: enrollments[1].id,
+      billingMonth: currentMonth,
+      amount: tuitionPlans[1].amount,
+      issuedAt: `${monthDate(currentMonth, 1)}T09:00:00+09:00`,
+      dueDate: monthDate(currentMonth, Math.max(1, today.getDate() - 3)),
+      status: "issued",
+      paidAmount: 0,
+      paidAt: null,
+      paymentMethod: null,
+      updatedAt: atTime(addDays(baseDate, -1), "09:00:00")
+    });
+
+    const guardianPaymentSettings = [{
+      id: "demo-guardian-setting-1",
+      guardianUserId: guardian.id,
+      paymentMode: "manual",
+      defaultMethod: null,
+      autoPay: false,
+      splitPayment: true,
+      consentAt: null,
+      updatedAt: atTime(addDays(baseDate, -30), "09:00:00")
+    }];
+    const guardianVirtualAccounts = [{
+      id: `guardian-vaccount-${guardian.id}`,
+      guardianUserId: guardian.id,
+      provider: "KCP_FIXED_VIRTUAL_ACCOUNT",
+      bankName: "국민은행",
+      accountNumber: "999-01-000123",
+      depositorName: "모아플로",
+      status: "active",
+      creditBalance: 8000,
+      issuedAt: atTime(addDays(baseDate, -60), "09:00:00"),
+      closedAt: null
+    }];
+
+    return {
+      ...JSON.parse(JSON.stringify(baseState)),
+      schemaVersion: 15,
+      activeView: "home",
+      selectedStudentId: null,
+      selectedHomeworkStudentId: null,
+      selectedTestStudentId: null,
+      selectedStaffMemberId: null,
+      analyticsClassName: null,
+      analyticsStudentId: null,
+      users: [owner, instructor, guardian, operator],
+      academies: [academy],
+      staffMemberships,
+      staffClassAssignments,
+      students,
+      enrollments,
+      guardianLinks,
+      invitations: [],
+      consents,
+      csvImports: [],
+      attendanceRecords,
+      learningRecords,
+      homeworkAssignments,
+      testSettings,
+      assessments,
+      consultationRecords,
+      usageEvents,
+      supportRequests,
+      guardianCommentReplies,
+      guardianNotificationReads: [],
+      academyCommentReplyReads: {},
+      privacyRightsRequests: [],
+      auditLogs: [],
+      billingPolicies,
+      tuitionPlans,
+      invoices,
+      paymentBatches: [],
+      payments,
+      billingNotifications: [],
+      paymentEvents: [],
+      guardianPaymentSettings,
+      guardianVirtualAccounts
+    };
+  }
+
+  window.MoaFlowQaData = { createLargeQaState, createPresentationDemoState };
 })();

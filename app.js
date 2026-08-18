@@ -639,7 +639,11 @@ const instructorNavigationGroups = [
 const qaMode = ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
   new URLSearchParams(window.location.search).get("qa") === "large" &&
   Boolean(window.MoaFlowQaData?.createLargeQaState);
-let state = qaMode ? window.MoaFlowQaData.createLargeQaState(initialState) : loadState();
+const demoMode = new URLSearchParams(window.location.search).get("demo") === "preview" &&
+  Boolean(window.MoaFlowQaData?.createPresentationDemoState);
+let state = qaMode ? window.MoaFlowQaData.createLargeQaState(initialState)
+  : demoMode ? window.MoaFlowQaData.createPresentationDemoState(initialState)
+  : loadState();
 state = ensureAcademyClassState(state);
 state = window.MoaFlowPayments.ensureState(state);
 let session = loadSession();

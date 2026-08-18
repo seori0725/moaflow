@@ -452,6 +452,7 @@
     const prevMonth2 = shiftMonth(currentMonth, -2);
 
     const owner = { id: "demo-owner-1", name: "김도윤 원장", phone: "010-1234-5678", role: "academy_owner", status: "active" };
+    const owner2 = { id: "demo-owner-2", name: "이하늘 원장", phone: "010-4444-5555", role: "academy_owner", status: "active" };
     const instructor = { id: "demo-teacher-1", name: "이서연 강사", phone: "010-2222-3333", role: "academy_instructor", status: "active" };
     const guardian = { id: "demo-guardian-1", name: "송지호 학부모", phone: "010-9876-5432", role: "guardian", status: "active" };
     const operator = { id: "demo-operator-1", name: "모아플로 운영", phone: "010-0000-0000", role: "operator", status: "active" };
@@ -462,34 +463,48 @@
       ownerUserId: owner.id,
       businessRegistrationNumber: "123-45-67890",
       phone: "02-1234-5678",
-      mainProgram: "수학·영어 중심 초중등 맞춤 학습",
+      mainProgram: "수학 중심 초중등 맞춤 학습",
       address: "서울특별시 강남구 모아로 15",
       pilotStatus: "active",
       createdAt: atTime(addDays(baseDate, -180), "09:00:00")
     };
+    const academy2 = {
+      id: "demo-acd-2",
+      name: "브릿지 영어 데모학원",
+      ownerUserId: owner2.id,
+      businessRegistrationNumber: "234-56-78901",
+      phone: "02-2345-6789",
+      mainProgram: "초중등 영어 독해·회화",
+      address: "서울시 마포구 성산로 42",
+      pilotStatus: "active",
+      createdAt: atTime(addDays(baseDate, -170), "09:00:00")
+    };
+    const academies = [academy, academy2];
+    const ownerByAcademyId = { [academy.id]: owner, [academy2.id]: owner2 };
 
     const students = [
       { id: "demo-student-1", name: "송이안", birthDate: "2014-03-11", createdBy: owner.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") },
-      { id: "demo-student-2", name: "송민재", birthDate: "2016-07-22", createdBy: owner.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") }
+      { id: "demo-student-2", name: "송민재", birthDate: "2016-07-22", createdBy: owner2.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") }
     ];
 
     const enrollments = [
       { id: "demo-enrollment-1", academyId: academy.id, studentId: students[0].id, className: "수학 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] },
-      { id: "demo-enrollment-2", academyId: academy.id, studentId: students[1].id, className: "영어 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] }
+      { id: "demo-enrollment-2", academyId: academy2.id, studentId: students[1].id, className: "영어 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] }
     ];
 
     const staffMemberships = [
       { id: "demo-stm-owner-1", academyId: academy.id, userId: owner.id, role: "academy_owner", grants: [], status: "active" },
-      { id: "demo-stm-teacher-1", academyId: academy.id, userId: instructor.id, role: "academy_instructor", grants: ["student.manage"], status: "active" }
+      { id: "demo-stm-teacher-1", academyId: academy.id, userId: instructor.id, role: "academy_instructor", grants: ["student.manage"], status: "active" },
+      { id: "demo-stm-owner-2", academyId: academy2.id, userId: owner2.id, role: "academy_owner", grants: [], status: "active" }
     ];
     const staffClassAssignments = [
       { id: "demo-assignment-1", academyId: academy.id, userId: instructor.id, className: "수학 1반" },
-      { id: "demo-assignment-2", academyId: academy.id, userId: instructor.id, className: "영어 1반" }
+      { id: "demo-assignment-2", academyId: academy2.id, userId: owner2.id, className: "영어 1반" }
     ];
 
     const guardianLinks = [
       { id: "demo-link-1", guardianUserId: guardian.id, studentId: students[0].id, academyId: academy.id, relationship: "부모", status: "verified", verifiedAt: atTime(addDays(baseDate, -150), "14:30:00") },
-      { id: "demo-link-2", guardianUserId: guardian.id, studentId: students[1].id, academyId: academy.id, relationship: "부모", status: "verified", verifiedAt: atTime(addDays(baseDate, -150), "14:30:00") }
+      { id: "demo-link-2", guardianUserId: guardian.id, studentId: students[1].id, academyId: academy2.id, relationship: "부모", status: "verified", verifiedAt: atTime(addDays(baseDate, -150), "14:30:00") }
     ];
     const consents = guardianLinks.map((link, index) => ({
       id: `demo-consent-${index + 1}`,
@@ -514,10 +529,11 @@
       subject: enrollment.className.split(" ")[0],
       frequency: "weekly_monthly",
       averageVisibility: "guardian",
-      updatedBy: owner.id,
+      updatedBy: ownerByAcademyId[enrollment.academyId].id,
       updatedAt: atTime(addDays(baseDate, -2), "11:00:00")
     }));
     enrollments.forEach((enrollment, enrollmentIndex) => {
+      const academyOwner = ownerByAcademyId[enrollment.academyId];
       for (let week = 0; week < 5; week += 1) {
         const lessonDate = addDays(baseDate, -(week * 7) - 1);
         learningRecords.push({
@@ -532,7 +548,7 @@
           homework: "수업 복습 문제와 오답 정리",
           specialNotes: week === 0 ? "다음 시간 단원평가 예정" : "",
           nextPlan: "다음 단원 개념과 응용 문제 학습",
-          createdBy: owner.id,
+          createdBy: academyOwner.id,
           createdAt: atTime(lessonDate, "18:10:00")
         });
         homeworkAssignments.push({
@@ -542,7 +558,7 @@
           assignedDate: dateOnly(lessonDate),
           title: `${week + 1}주차 복습 과제`,
           statuses: [{ studentId: enrollment.studentId, status: week === 1 ? "partial" : "completed", note: "" }],
-          createdBy: owner.id,
+          createdBy: academyOwner.id,
           createdAt: atTime(lessonDate, "18:15:00")
         });
         attendanceRecords.push({
@@ -555,7 +571,7 @@
           arrivalTime: week === 2 ? "16:12" : "15:58",
           reason: week === 2 ? "교통 지연" : "",
           checkedAt: atTime(lessonDate, week === 2 ? "16:12:00" : "15:58:00"),
-          checkedBy: owner.id,
+          checkedBy: academyOwner.id,
           history: []
         });
         if (week % 2 === 0) {
@@ -570,9 +586,9 @@
             scope: `${week + 1}주차 학습 범위`,
             testDate: dateOnly(assessmentDate),
             maxScore: 100,
-            attempts: [{ id: `demo-attempt-${enrollmentIndex + 1}-${week + 1}`, studentId: enrollment.studentId, attemptNo: 1, status: "taken", score: 78 + enrollmentIndex * 6 + week, note: "", recordedAt: atTime(assessmentDate, "18:00:00"), recordedBy: owner.id }],
+            attempts: [{ id: `demo-attempt-${enrollmentIndex + 1}-${week + 1}`, studentId: enrollment.studentId, attemptNo: 1, status: "taken", score: 78 + enrollmentIndex * 6 + week, note: "", recordedAt: atTime(assessmentDate, "18:00:00"), recordedBy: academyOwner.id }],
             scoreHistory: [],
-            createdBy: owner.id,
+            createdBy: academyOwner.id,
             createdAt: atTime(assessmentDate, "18:00:00")
           });
         }
@@ -590,6 +606,17 @@
       guardianSummary: "학습 진도와 보완할 내용을 보호자에게 안내했습니다.",
       createdBy: owner.id,
       createdAt: atTime(addDays(baseDate, -14), "17:40:00")
+    }, {
+      id: "demo-consultation-2",
+      academyId: academy2.id,
+      studentId: students[1].id,
+      consultationDate: dateOnly(addDays(baseDate, -11)),
+      type: "guardian",
+      internalMemo: "영어 독해 진도와 과제 수행 흐름을 확인했습니다.",
+      nextAction: "다음 평가 후 보완 학습을 안내합니다.",
+      guardianSummary: "학습 진도와 보완할 내용을 보호자에게 안내했습니다.",
+      createdBy: owner2.id,
+      createdAt: atTime(addDays(baseDate, -11), "17:40:00")
     }];
     const guardianCommentReplies = [{
       id: "demo-reply-1",
@@ -600,11 +627,21 @@
       authorRole: "academy",
       body: "안내 내용을 확인했습니다.",
       createdAt: atTime(addDays(baseDate, -13), "15:37:00")
+    }, {
+      id: "demo-reply-2",
+      consultationId: consultationRecords[1].id,
+      academyId: academy2.id,
+      studentId: students[1].id,
+      authorUserId: owner2.id,
+      authorRole: "academy",
+      body: "안내 내용을 확인했습니다.",
+      createdAt: atTime(addDays(baseDate, -10), "15:37:00")
     }];
 
     const usageEvents = [
       { id: "demo-usage-1", academyId: academy.id, userId: owner.id, type: "academy.analytics_viewed", createdAt: atTime(addDays(baseDate, -3), "17:20:00") },
-      { id: "demo-usage-2", academyId: academy.id, userId: guardian.id, type: "guardian.home_viewed", createdAt: atTime(addDays(baseDate, -1), "20:10:00") }
+      { id: "demo-usage-2", academyId: academy2.id, userId: owner2.id, type: "academy.analytics_viewed", createdAt: atTime(addDays(baseDate, -3), "17:25:00") },
+      { id: "demo-usage-3", academyId: academy.id, userId: guardian.id, type: "guardian.home_viewed", createdAt: atTime(addDays(baseDate, -1), "20:10:00") }
     ];
     const supportRequests = [{
       id: "demo-support-1",
@@ -621,9 +658,9 @@
       history: []
     }];
 
-    const billingPolicies = [{
-      id: `bill-policy-${academy.id}`,
-      academyId: academy.id,
+    const billingPolicies = academies.map((item) => ({
+      id: `bill-policy-${item.id}`,
+      academyId: item.id,
       scheduleType: "fixed_monthly",
       billingTiming: "month_start",
       billingDay: 1,
@@ -634,10 +671,10 @@
       overdueReminderDays: 3,
       active: true,
       updatedAt: atTime(addDays(baseDate, -30), "09:00:00")
-    }];
+    }));
     const tuitionPlans = [
       { id: "demo-tuition-1", academyId: academy.id, className: "수학 1반", amount: 200000, active: true },
-      { id: "demo-tuition-2", academyId: academy.id, className: "영어 1반", amount: 180000, active: true }
+      { id: "demo-tuition-2", academyId: academy2.id, className: "영어 1반", amount: 180000, active: true }
     ];
 
     const invoices = [];
@@ -711,7 +748,7 @@
     });
     invoices.push({
       id: `demo-invoice-2-${currentMonth}`,
-      academyId: academy.id,
+      academyId: academy2.id,
       guardianUserId: guardian.id,
       studentId: students[1].id,
       enrollmentId: enrollments[1].id,
@@ -759,8 +796,8 @@
       selectedStaffMemberId: null,
       analyticsClassName: null,
       analyticsStudentId: null,
-      users: [owner, instructor, guardian, operator],
-      academies: [academy],
+      users: [owner, instructor, guardian, operator, owner2],
+      academies,
       staffMemberships,
       staffClassAssignments,
       students,

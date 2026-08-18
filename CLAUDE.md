@@ -1,5 +1,7 @@
 # MoaFlow 작업 인계
 
+> 현재 학원비 결제 브랜치를 이어서 작업할 때는 `CLAUDE_PAYMENT_HANDOFF.md`를 반드시 먼저 읽는다. 이 문서에 현재 브랜치 상태, 고정형 가상계좌 정책, 검증, GitHub 병합, Firebase 배포 순서가 정리되어 있다.
+
 ## 프로젝트
 
 - 단일 페이지 정적 프로토타입: `index.html`, `app.js`, `styles.css`

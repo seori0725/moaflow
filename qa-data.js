@@ -484,12 +484,15 @@
 
     const students = [
       { id: "demo-student-1", name: "송이안", birthDate: "2014-03-11", createdBy: owner.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") },
-      { id: "demo-student-2", name: "송민재", birthDate: "2016-07-22", createdBy: owner2.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") }
+      { id: "demo-student-2", name: "송민재", birthDate: "2016-07-22", createdBy: owner.id, createdAt: atTime(addDays(baseDate, -170), "10:00:00") }
     ];
 
+    // 송이안은 두 학원(수학·영어)에 다니고, 송민재는 한 학원(수학)에만 다닌다 —
+    // 같은 학부모라도 자녀별로 다니는 학원 수가 다를 수 있음을 보여준다.
     const enrollments = [
       { id: "demo-enrollment-1", academyId: academy.id, studentId: students[0].id, className: "수학 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] },
-      { id: "demo-enrollment-2", academyId: academy2.id, studentId: students[1].id, className: "영어 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] }
+      { id: "demo-enrollment-2", academyId: academy2.id, studentId: students[0].id, className: "영어 1반", startedAt: dateOnly(addDays(baseDate, -160)), status: "active", classHistory: [] },
+      { id: "demo-enrollment-3", academyId: academy.id, studentId: students[1].id, className: "수학 1반", startedAt: dateOnly(addDays(baseDate, -140)), status: "active", classHistory: [] }
     ];
 
     const staffMemberships = [
@@ -502,10 +505,15 @@
       { id: "demo-assignment-2", academyId: academy2.id, userId: owner2.id, className: "영어 1반" }
     ];
 
-    const guardianLinks = [
-      { id: "demo-link-1", guardianUserId: guardian.id, studentId: students[0].id, academyId: academy.id, relationship: "부모", status: "verified", verifiedAt: atTime(addDays(baseDate, -150), "14:30:00") },
-      { id: "demo-link-2", guardianUserId: guardian.id, studentId: students[1].id, academyId: academy2.id, relationship: "부모", status: "verified", verifiedAt: atTime(addDays(baseDate, -150), "14:30:00") }
-    ];
+    const guardianLinks = enrollments.map((enrollment, index) => ({
+      id: `demo-link-${index + 1}`,
+      guardianUserId: guardian.id,
+      studentId: enrollment.studentId,
+      academyId: enrollment.academyId,
+      relationship: "부모",
+      status: "verified",
+      verifiedAt: atTime(addDays(baseDate, -150), "14:30:00")
+    }));
     const consents = guardianLinks.map((link, index) => ({
       id: `demo-consent-${index + 1}`,
       guardianUserId: link.guardianUserId,
@@ -677,11 +685,13 @@
       { id: "demo-tuition-2", academyId: academy2.id, className: "영어 1반", amount: 180000, active: true }
     ];
 
+    const planFor = (enrollment) => tuitionPlans.find((item) => item.academyId === enrollment.academyId && item.className === enrollment.className);
+
     const invoices = [];
     const payments = [];
     [prevMonth2, prevMonth1].forEach((billingMonth) => {
       enrollments.forEach((enrollment, index) => {
-        const plan = tuitionPlans[index];
+        const plan = planFor(enrollment);
         const paidAt = `${monthDate(billingMonth, 5)}T11:20:00+09:00`;
         const invoice = {
           id: `demo-invoice-${index + 1}-${billingMonth}`,
@@ -696,7 +706,7 @@
           status: "paid",
           paidAmount: plan.amount,
           paidAt,
-          paymentMethod: index === 0 ? "virtual_account" : "card",
+          paymentMethod: index % 2 === 0 ? "virtual_account" : "card",
           updatedAt: paidAt
         };
         invoices.push(invoice);
@@ -716,51 +726,49 @@
         });
       });
     });
-    invoices.push({
-      id: `demo-invoice-1-${currentMonth}`,
-      academyId: academy.id,
-      guardianUserId: guardian.id,
-      studentId: students[0].id,
-      enrollmentId: enrollments[0].id,
-      billingMonth: currentMonth,
-      amount: tuitionPlans[0].amount,
-      issuedAt: `${monthDate(currentMonth, 1)}T09:00:00+09:00`,
-      dueDate: monthDate(currentMonth, 28),
-      status: "issued",
-      paidAmount: 130000,
-      paidAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`,
-      paymentMethod: "virtual_account",
-      updatedAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`
-    });
-    payments.push({
-      id: `demo-payment-partial-${currentMonth}`,
-      batchId: `demo-batch-partial-${currentMonth}`,
-      invoiceIds: [`demo-invoice-1-${currentMonth}`],
-      academyId: academy.id,
-      guardianUserId: guardian.id,
-      method: "virtual_account",
-      provider: "KCP_VIRTUAL_ACCOUNT_MOCK",
-      amount: 130000,
-      status: "paid",
-      transactionId: `DEMO-PARTIAL-${currentMonth.replace("-", "")}`,
-      paidAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`,
-      createdAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`
-    });
-    invoices.push({
-      id: `demo-invoice-2-${currentMonth}`,
-      academyId: academy2.id,
-      guardianUserId: guardian.id,
-      studentId: students[1].id,
-      enrollmentId: enrollments[1].id,
-      billingMonth: currentMonth,
-      amount: tuitionPlans[1].amount,
-      issuedAt: `${monthDate(currentMonth, 1)}T09:00:00+09:00`,
-      dueDate: monthDate(currentMonth, Math.max(1, today.getDate() - 3)),
-      status: "issued",
-      paidAmount: 0,
-      paidAt: null,
-      paymentMethod: null,
-      updatedAt: atTime(addDays(baseDate, -1), "09:00:00")
+
+    // 이번달 청구서 3건으로 서로 다른 상태를 한 화면에서 보여준다:
+    // enrollment[0] 수학(송이안) = 부분납부, enrollment[1] 영어(송이안) = 미납, enrollment[2] 수학(송민재) = 정상 청구(기한 전)
+    const currentInvoiceSpecs = [
+      { enrollment: enrollments[0], paidAmount: 130000, paymentMethod: "virtual_account", dueDay: 28 },
+      { enrollment: enrollments[1], paidAmount: 0, paymentMethod: null, dueDay: Math.max(1, today.getDate() - 3) },
+      { enrollment: enrollments[2], paidAmount: 0, paymentMethod: null, dueDay: 28 }
+    ];
+    currentInvoiceSpecs.forEach((spec, index) => {
+      const plan = planFor(spec.enrollment);
+      const invoiceId = `demo-invoice-${index + 1}-${currentMonth}`;
+      invoices.push({
+        id: invoiceId,
+        academyId: spec.enrollment.academyId,
+        guardianUserId: guardian.id,
+        studentId: spec.enrollment.studentId,
+        enrollmentId: spec.enrollment.id,
+        billingMonth: currentMonth,
+        amount: plan.amount,
+        issuedAt: `${monthDate(currentMonth, 1)}T09:00:00+09:00`,
+        dueDate: monthDate(currentMonth, spec.dueDay),
+        status: "issued",
+        paidAmount: spec.paidAmount,
+        paidAt: spec.paidAmount ? `${monthDate(currentMonth, 5)}T11:20:00+09:00` : null,
+        paymentMethod: spec.paymentMethod,
+        updatedAt: spec.paidAmount ? `${monthDate(currentMonth, 5)}T11:20:00+09:00` : atTime(addDays(baseDate, -1), "09:00:00")
+      });
+      if (spec.paidAmount > 0) {
+        payments.push({
+          id: `demo-payment-partial-${invoiceId}`,
+          batchId: `demo-batch-partial-${invoiceId}`,
+          invoiceIds: [invoiceId],
+          academyId: spec.enrollment.academyId,
+          guardianUserId: guardian.id,
+          method: spec.paymentMethod,
+          provider: "KCP_VIRTUAL_ACCOUNT_MOCK",
+          amount: spec.paidAmount,
+          status: "paid",
+          transactionId: `DEMO-PARTIAL-${currentMonth.replace("-", "")}-${index + 1}`,
+          paidAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`,
+          createdAt: `${monthDate(currentMonth, 5)}T11:20:00+09:00`
+        });
+      }
     });
 
     const guardianPaymentSettings = [{

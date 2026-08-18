@@ -738,7 +738,7 @@ test("운영자는 기간별 입력·조회율과 학원 운영 상태를 관리
   assert.equal(await page.locator("#view-root > .hero-panel").count(), 0);
   assert.deepEqual(
     (await page.locator("#main-nav .nav-item").allTextContents()).map((item) => item.trim()),
-    ["운영 현황", "서비스 이용", "학원 관리", "오류·문의", "공통 데이터 구조", "전체 감사 이력"]
+    ["운영 현황", "결제 운영", "서비스 이용", "학원 관리", "오류·문의", "공통 데이터 구조", "전체 감사 이력"]
   );
   assert.equal(await page.locator("#operator-metric-window").inputValue(), "7");
   assert.equal(await page.locator(".data-table tbody tr").count(), 2);

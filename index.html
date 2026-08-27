@@ -8,7 +8,7 @@
       content="모아플로 학원 운영: 학원 관리, 학부모 성장 확인, 운영 지표와 오류·문의 관리"
     />
     <title>MoaFlow · 운영자 기능 완성</title>
-    <link rel="stylesheet" href="./styles.css?v=20260818-03" />
+    <link rel="stylesheet" href="./styles.css?v=20260827-04" />
   </head>
   <body>
     <div id="toast-region" class="toast-region" aria-live="polite"></div>
@@ -16,11 +16,8 @@
     <main id="auth-screen" class="auth-screen">
       <section class="auth-story">
         <div class="auth-brand-lockup">
-          <a class="brand brand-light" href="#" aria-label="모아플로 홈">
-            <svg class="brand-symbol" viewBox="0 0 60 56" aria-hidden="true">
-              <path d="M8 48 L8 14 Q8 9 13 12 L30 30 L47 12 Q52 9 52 14 L52 48"></path>
-              <path d="M30 30 L30 48 M30 30 L48 30"></path>
-            </svg>
+          <a class="brand" href="#" aria-label="모아플로 홈">
+            <svg class="brand-symbol auth-motion-symbol" viewBox="0 0 60 56" aria-hidden="true"><circle class="auth-motion-dot" cx="30" cy="30" r="5"></circle><path class="auth-motion-green" d="M30 30 L30 48 M30 30 L48 30"></path><path class="auth-motion-m" d="M8 48 L8 14 Q8 9 13 12 L30 30 L47 12 Q52 9 52 14 L52 48"></path></svg>
             <span><i>Moa</i>Flow</span>
           </a>
           <p>학원을 간편하게 운영하고<br />학부모와 자녀의 출결·학습 현황을 공유하며 소통하세요.</p>
@@ -49,6 +46,7 @@
             <div class="operator-login-row">
               <button type="button" class="operator-login-link" data-auth-role="operator" data-auth-direct="true">운영자 로그인</button>
             </div>
+            <p class="auth-policy">인증을 계속하면 서비스 이용약관과 개인정보 처리방침에 동의한 것으로 봅니다.</p>
           </div>
 
           <form id="auth-phone-step" class="hidden">
@@ -79,7 +77,6 @@
             </div>
           </form>
         </div>
-        <p class="auth-policy">인증을 계속하면 서비스 이용약관과 개인정보 처리방침에 동의한 것으로 봅니다.</p>
       </section>
     </main>
 
@@ -126,8 +123,8 @@
     </div>
 
     <div id="qa-mode-banner" class="qa-mode-banner hidden" role="status"></div>
-    <script src="./payments.js?v=20260818-03"></script>
-    <script src="./qa-data.js?v=20260818-03"></script>
-    <script src="./app.js?v=20260818-03"></script>
+    <script src="./payments.js?v=20260827-04"></script>
+    <script src="./qa-data.js?v=20260827-04"></script>
+    <script src="./app.js?v=20260827-04"></script>
   </body>
 </html>

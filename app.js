@@ -1233,7 +1233,7 @@ function renderShell() {
         .filter((link) => link.guardianUserId === user.id && link.status === "verified")
         .map((link) => link.studentId)
     ).size;
-    contextName.textContent = `${accountName}(학부모)`;
+    contextName.textContent = `${accountName} 학부모`;
     document.querySelector("#context-detail").textContent = `연결 자녀 ${linked}명`;
   } else {
     document.querySelector("#context-label").textContent = "";
@@ -1328,49 +1328,77 @@ function renderHome(role) {
       .map((item) => item.studentId)
   );
   const connected = academyEnrollments.filter((item) => connectedStudentIds.has(item.studentId)).length;
+  const classWorkItems = classNames.map((className) => {
+    const classEnrollments = activeEnrollments.filter((item) => item.className === className);
+    const classAttendance = attendance.filter((item) => item.className === className).length;
+    const classLearning = learning.some((item) => item.className === className);
+    const classHomework = state.homeworkAssignments.find(
+      (item) => item.academyId === academy.id && item.className === className && item.assignedDate === today
+    );
+    const homeworkExceptions = (classHomework?.statuses || []).filter((item) => item.status !== "completed").length;
+    const classTest = state.assessments.find(
+      (item) => item.academyId === academy.id && item.className === className && item.testDate === today
+    );
+    const missingCount = Math.max(0, classEnrollments.length - classAttendance) + (classLearning ? 0 : 1) + (classHomework ? 0 : 1);
+    return { className, classEnrollments, classAttendance, classLearning, classHomework, homeworkExceptions, classTest, missingCount };
+  });
+  const todayHomeworkCount = state.homeworkAssignments.filter((item) => item.academyId === academy.id && item.assignedDate === today).length;
+  const todayConsultations = state.consultationRecords.filter((item) => item.academyId === academy.id && item.consultationDate === today).length;
+  const inputQueue = [
+    { label: "출결", value: `${attendance.length}/${activeEnrollments.length}`, detail: "학생별 체크", view: "attendance", tone: attendance.length === activeEnrollments.length ? "green" : "orange" },
+    { label: "학습기록", value: `${learning.length}/${classNames.length}`, detail: "수업 내용·다음 계획", view: "learning", tone: learning.length === classNames.length ? "green" : "orange" },
+    { label: "과제", value: `${todayHomeworkCount}/${classNames.length}`, detail: "수행 상태 일괄 입력", view: "homework", tone: todayHomeworkCount ? "blue" : "gray" },
+    { label: "상담 필요", value: `${todayConsultations}건`, detail: "특이사항 후속 조치", view: "consultations", tone: todayConsultations ? "orange" : "gray" }
+  ];
+
   return `
-    <section class="grid four horizontal-metrics">
-      ${metricCard("오늘 수업", `${classNames.length}개 반`, "", false)}
+    <section class="academy-workbench">
+      <div class="workbench-head">
+        <div>
+          <h2>오늘 입력 작업대</h2>
+          <p>${escapeHtml(academy.name)} · ${escapeHtml(today)} · 재원 ${activeEnrollments.length}명</p>
+        </div>
+        ${hasPermission("csv.import") ? '<button class="button secondary compact" data-action="open-csv-modal">CSV 가져오기</button>' : ""}
+      </div>
+      <div class="input-queue">
+        ${inputQueue.map((item) => `
+          <button class="input-queue-card ${item.tone}" data-view-target="${item.view}">
+            <span>${item.label}</span>
+            <strong>${item.value}</strong>
+            <small>${item.detail}</small>
+          </button>
+        `).join("")}
+      </div>
+      <div class="workbench-save-strip">
+        <strong>미입력 많은 반 ${classWorkItems.filter((item) => item.missingCount > 0).length}개</strong>
+        <span>반별 행에서 바로 출결·학습·과제로 이동해 입력합니다.</span>
+        <button class="button primary compact" data-view-target="attendance">입력 시작</button>
+      </div>
+    </section>
+
+    <section class="grid four horizontal-metrics compact-metrics">
+      ${metricCard("오늘 수업", `${classNames.length}개 반`, "")}
       ${metricCard("출결 처리율", `${attendance.length}/${activeEnrollments.length}`, "", true)}
-      ${metricCard("학습기록", `${learning.length}/${classNames.length}`, "", false)}
+      ${metricCard("학습기록", `${learning.length}/${classNames.length}`, "")}
       ${metricCard("보호자 연결", `${connected}/${academyEnrollments.length}`, "")}
     </section>
 
     <article class="panel">
-      <div class="panel-head"><div><h2>반별 운영 현황</h2></div>${hasPermission("csv.import") ? '<button class="button secondary compact" data-action="open-csv-modal">CSV 가져오기</button>' : ""}</div>
+      <div class="panel-head"><div><h2>반별 입력 현황</h2><p>오늘 수업 기준으로 미입력 항목을 먼저 확인합니다.</p></div></div>
       <div class="table-wrap record-scroll">
         <table class="data-table">
-          <thead><tr><th>반</th><th>원생</th><th>출결</th><th>학습기록</th><th>과제</th><th>테스트</th><th>바로가기</th></tr></thead>
+          <thead><tr><th>반</th><th>원생</th><th>미입력</th><th>출결</th><th>학습기록</th><th>과제</th><th>테스트</th><th>바로가기</th></tr></thead>
           <tbody>
-            ${classNames.map((className) => {
-              const classEnrollments = activeEnrollments.filter((item) => item.className === className);
-              const classAttendance = attendance.filter((item) => item.className === className).length;
-              const classLearning = learning.some((item) => item.className === className);
-              const classHomework = state.homeworkAssignments.find(
-                (item) =>
-                  item.academyId === academy.id &&
-                  item.className === className &&
-                  item.assignedDate === today
-              );
-              const homeworkExceptions = (classHomework?.statuses || []).filter(
-                (item) => item.status !== "completed"
-              ).length;
-              const classTest = state.assessments.find(
-                (item) =>
-                  item.academyId === academy.id &&
-                  item.className === className &&
-                  item.testDate === today
-              );
-              return `<tr>
+            ${classWorkItems.map(({ className, classEnrollments, classAttendance, classLearning, classHomework, homeworkExceptions, classTest, missingCount }) => `<tr>
                 <td><strong>${escapeHtml(className)}</strong></td>
                 <td>${classEnrollments.length}명</td>
+                <td><span class="badge ${missingCount ? "orange" : "green"}">${missingCount ? `${missingCount}개` : "완료"}</span></td>
                 <td><span class="badge ${classAttendance === classEnrollments.length ? "green" : "orange"}">${classAttendance}/${classEnrollments.length}</span></td>
                 <td><span class="badge ${classLearning ? "green" : "gray"}">${classLearning ? "입력 완료" : "미입력"}</span></td>
                 <td><span class="badge ${classHomework ? homeworkExceptions ? "orange" : "green" : "gray"}">${classHomework ? homeworkExceptions ? `예외 ${homeworkExceptions}명` : "전원 완료" : "미입력"}</span></td>
                 <td><span class="badge ${classTest ? "orange" : "gray"}">${classTest ? "결과 확인" : "일정 없음"}</span></td>
                 <td><div class="row-actions"><button class="button tertiary compact" data-view-target="attendance">출결</button><button class="button tertiary compact" data-view-target="learning">학습</button><button class="button tertiary compact" data-view-target="homework">과제</button></div></td>
-              </tr>`;
-            }).join("")}
+              </tr>`).join("")}
           </tbody>
         </table>
       </div>
@@ -1483,52 +1511,150 @@ function renderAttendance() {
   `;
 }
 
+function learningWeekStart(value) {
+  const base = new Date(`${value || koreaDate()}T00:00:00+09:00`);
+  const day = base.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  base.setDate(base.getDate() + diff);
+  return koreaDate(base);
+}
+
+function learningWeekEnd(value) {
+  const end = new Date(`${learningWeekStart(value)}T00:00:00+09:00`);
+  end.setDate(end.getDate() + 6);
+  return koreaDate(end);
+}
+
+function learningPeriodBounds(mode, anchorDate) {
+  const anchor = new Date(`${anchorDate || koreaDate()}T00:00:00+09:00`);
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  if (mode === "yearly") return { start: `${year}-01-01`, end: `${year}-12-31`, label: `${year}년` };
+  if (mode === "quarterly") {
+    const quarterStart = Math.floor(month / 3) * 3;
+    const start = new Date(year, quarterStart, 1);
+    const end = new Date(year, quarterStart + 3, 0);
+    return { start: koreaDate(start), end: koreaDate(end), label: `${year}년 ${Math.floor(month / 3) + 1}분기` };
+  }
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
+  return { start: koreaDate(start), end: koreaDate(end), label: `${year}년 ${String(month + 1).padStart(2, "0")}월` };
+}
+
+function learningTemplateText(template) {
+  return ({
+    concept: "핵심 개념을 설명하고 대표 유형을 함께 풀이했습니다.",
+    practice: "주요 유형 문제를 풀이하며 풀이 과정과 실수를 점검했습니다.",
+    review: "지난 수업 내용을 복습하고 오답이 많은 부분을 다시 정리했습니다.",
+    test: "주간 평가를 진행하고 결과를 바탕으로 보완할 부분을 확인했습니다."
+  })[template] || "";
+}
+
+function learningHomeworkTemplateText(template) {
+  return ({
+    review: "이번 주 진도 복습",
+    wrong: "오답 노트 정리",
+    workbook: "교재 p.__~__",
+    none: "과제 없음"
+  })[template] || "";
+}
+
+function appendTextareaValue(selector, text) {
+  const field = document.querySelector(selector);
+  if (!field || !text) return;
+  field.value = field.value ? `${field.value}\n${text}` : text;
+  field.focus();
+}
 function renderLearning() {
-  setPage("학원 운영", "학습 기록");
+  setPage("학원 운영", "주간 학습기록");
   const classes = academyClassNames();
   if (!classes.length) {
     return '<article class="panel"><div class="empty-state">담당 반에 학습기록을 입력할 재원 원생이 없습니다.</div></article>';
   }
+  const academy = currentAcademy();
   const className = classes.includes(state.selectedClassName) ? state.selectedClassName : classes[0];
   const lessonDate = state.selectedLessonDate || koreaDate();
+  const weekStart = learningWeekStart(lessonDate);
+  const weekEnd = learningWeekEnd(lessonDate);
   const existing = state.learningRecords.find(
-    (item) => item.academyId === currentAcademy().id && item.className === className && item.lessonDate === lessonDate
+    (item) => item.academyId === academy.id && item.className === className && item.lessonDate === lessonDate
   );
   const previous = state.learningRecords
-    .filter((item) => item.academyId === currentAcademy().id && item.className === className && item.lessonDate < lessonDate)
+    .filter((item) => item.academyId === academy.id && item.className === className && item.lessonDate < lessonDate)
     .sort((a, b) => b.lessonDate.localeCompare(a.lessonDate))[0];
+  const summaryMode = state.learningSummaryMode || "monthly";
+  const bounds = learningPeriodBounds(summaryMode, lessonDate);
+  const periodRecords = state.learningRecords
+    .filter((item) => item.academyId === academy.id && item.className === className && item.lessonDate >= bounds.start && item.lessonDate <= bounds.end)
+    .sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+  const uniqueUnits = [...new Set(periodRecords.map((item) => item.unit).filter(Boolean))];
+  const uniqueTextbooks = [...new Set(periodRecords.map((item) => item.textbook).filter(Boolean))];
+  const noteCount = periodRecords.filter((item) => item.specialNotes).length;
   const value = (key) => escapeHtml(existing?.[key] || "");
 
   return `
-    <article class="panel">
+    <article class="panel weekly-learning-panel">
       <div class="panel-head">
-        <div><h2>일별 학습기록</h2></div>
+        <div><h2>주간 학습기록</h2></div>
         <div class="compact-filters">
           <select id="learning-class" aria-label="반 선택">${classes.map((item) => `<option ${item === className ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select>
-          <input id="learning-date" type="date" value="${lessonDate}" aria-label="수업일 선택" />
+          <input id="learning-date" type="date" value="${lessonDate}" aria-label="주 시작일 선택" />
         </div>
       </div>
       <form id="learning-form">
-        <div class="learning-layout">
-          <div class="form-grid">
+        <div class="weekly-learning-range"><strong>${escapeHtml(weekStart)} ~ ${escapeHtml(weekEnd)}</strong></div>
+        <div class="learning-layout weekly-learning-layout">
+          <div class="form-grid weekly-learning-form">
             <div><label for="learning-textbook">교재</label><input id="learning-textbook" name="textbook" required value="${value("textbook")}" placeholder="예: 개념원리 중2-1" /></div>
-            <div><label for="learning-unit">단원</label><input id="learning-unit" name="unit" required value="${value("unit")}" placeholder="예: 일차함수" /></div>
-            <div class="full"><label for="learning-pages">페이지·진도</label><input id="learning-pages" name="pages" required value="${value("pages")}" placeholder="예: 42~47쪽" /></div>
-            <div class="full"><label for="learning-content">오늘 학습내용</label><textarea id="learning-content" name="content" required>${value("content")}</textarea></div>
-            <div class="full"><label for="learning-homework">과제 <span class="optional-label">선택</span></label><textarea id="learning-homework" name="homework" placeholder="예: 유형 3번 1~10번 풀기 · 과제 없음">${value("homework")}</textarea></div>
-            <div class="full"><label for="learning-special-notes">특이사항 <span class="optional-label">선택</span></label><textarea id="learning-special-notes" name="special-notes" placeholder="반 공통 공지, 준비물, 보강 안내 등을 입력합니다.">${value("specialNotes")}</textarea></div>
-            <div class="full"><label for="learning-next-plan">다음 계획</label><textarea id="learning-next-plan" name="next-plan" required>${value("nextPlan")}</textarea></div>
+            <div><label for="learning-unit">이번 주 단원</label><input id="learning-unit" name="unit" required value="${value("unit")}" placeholder="예: 일차함수" /></div>
+            <div class="full"><label for="learning-pages">진도 범위</label><input id="learning-pages" name="pages" required value="${value("pages")}" placeholder="예: 42~47쪽" /></div>
+            <div class="full learning-template-row" aria-label="수업 유형 빠른 입력">
+              ${[["concept", "개념"], ["practice", "문제풀이"], ["review", "복습"], ["test", "평가"]].map(([template, label]) => `<button class="template-chip" type="button" data-action="apply-learning-template" data-template="${template}">${label}</button>`).join("")}
+            </div>
+            <div class="full"><label for="learning-content">이번 주 학습 요약</label><textarea id="learning-content" name="content" required placeholder="예: 핵심 개념 설명 · 대표 유형 풀이 · 오답 정리">${value("content")}</textarea></div>
+            <div class="full learning-template-row" aria-label="과제 빠른 입력">
+              ${[["review", "진도 복습"], ["wrong", "오답 노트"], ["workbook", "교재 범위"], ["none", "과제 없음"]].map(([template, label]) => `<button class="template-chip muted" type="button" data-action="apply-homework-template" data-template="${template}">${label}</button>`).join("")}
+            </div>
+            <div class="full"><label for="learning-homework">이번 주 과제 요약 <span class="optional-label">선택</span></label><textarea id="learning-homework" name="homework" placeholder="예: 유형 3번 1~10번 · 과제 없음">${value("homework")}</textarea></div>
+            <div class="full"><label for="learning-special-notes">반 공통 특이사항 <span class="optional-label">선택</span></label><textarea id="learning-special-notes" name="special-notes" placeholder="예: 준비물, 보강, 반 공통 안내">${value("specialNotes")}</textarea></div>
+            <div class="full"><label for="learning-next-plan">다음 주 계획</label><textarea id="learning-next-plan" name="next-plan" required placeholder="예: 일차함수 식 세우기와 오답 보완">${value("nextPlan")}</textarea></div>
           </div>
-          <aside class="quick-panel">
-            <strong>빠른 작성</strong>
-            <p>${previous ? `${escapeHtml(previous.lessonDate)} 기록을 불러올 수 있습니다.` : "이전 학습기록이 없습니다."}</p>
+          <aside class="quick-panel weekly-quick-panel">
+            <strong>이전 기록</strong>
             <button class="button secondary block" type="button" data-action="load-previous-learning" ${previous ? "" : "disabled"}>이전 기록 불러오기</button>
           </aside>
         </div>
         <input type="hidden" name="class-name" value="${escapeHtml(className)}" />
         <input type="hidden" name="lesson-date" value="${lessonDate}" />
-        <div class="form-actions"><button class="button primary" type="submit">${existing ? "수정 저장" : "학습기록 저장"}</button></div>
+        <div class="attendance-save-bar action-only weekly-learning-save"><button class="button primary" type="submit">${existing ? "주간 기록 수정" : "주간 기록 저장"}</button></div>
       </form>
+    </article>
+
+    <article class="panel learning-cumulative-panel">
+      <div class="panel-head">
+        <div><h2>누적 학습 조회</h2></div>
+        <div class="compact-filters">
+          <select id="learning-summary-mode" aria-label="누적 조회 기간">
+            <option value="monthly" ${summaryMode === "monthly" ? "selected" : ""}>월별</option>
+            <option value="quarterly" ${summaryMode === "quarterly" ? "selected" : ""}>분기별</option>
+            <option value="yearly" ${summaryMode === "yearly" ? "selected" : ""}>연별</option>
+          </select>
+        </div>
+      </div>
+      <section class="grid four horizontal-metrics learning-summary-metrics">
+        ${metricCard("주간 기록", `${periodRecords.length}건`, bounds.label)}
+        ${metricCard("학습 단원", `${uniqueUnits.length}개`, uniqueUnits.slice(0, 2).join(" · ") || "기록 없음")}
+        ${metricCard("사용 교재", `${uniqueTextbooks.length}권`, uniqueTextbooks.slice(0, 2).join(" · ") || "기록 없음")}
+        ${metricCard("특이사항", `${noteCount}건`, "")}
+      </section>
+      <div class="learning-cumulative-list">
+        ${periodRecords.length ? periodRecords.map((item) => `<div class="learning-cumulative-row">
+          <time>${escapeHtml(learningWeekStart(item.lessonDate).slice(5).replace("-", "."))}~${escapeHtml(learningWeekEnd(item.lessonDate).slice(5).replace("-", "."))}</time>
+          <strong>${escapeHtml(item.textbook)} · ${escapeHtml(item.unit)}</strong>
+          <span>${escapeHtml(item.pages)}</span>
+          <small>${escapeHtml(item.content)}</small>
+        </div>`).join("") : '<div class="empty-state compact-empty">선택 기간의 주간 학습기록이 없습니다.</div>'}
+      </div>
     </article>
   `;
 }
@@ -2597,6 +2723,16 @@ function guardianTimelineEvents() {
   return events.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
+
+function guardianEventTypeClass(type) {
+  if (type === "출결") return "type-attendance";
+  if (type === "학습") return "type-learning";
+  if (type === "과제") return "type-homework";
+  if (type === "테스트") return "type-test";
+  if (type === "코멘트" || type === "답변") return "type-comment";
+  if (type === "결제") return "type-payment";
+  return "type-default";
+}
 function guardianNotificationEvents() {
   const { linkedPairs } = guardianScope();
   const actionEvents = guardianTimelineEvents().filter((item) => {
@@ -2654,7 +2790,7 @@ function renderGuardianFilters(events, actionMarkup = "") {
       </label>
       <label class="guardian-filter-field">
         <select id="guardian-academy-filter" aria-label="학원 선택">
-          <option value="all">전체 학원</option>
+          <option value="all">모든 학원</option>
           ${academyIds.map((id) => `<option value="${id}" ${filters.academyId === id ? "selected" : ""}>${escapeHtml(academyById(id)?.name || "학원")}</option>`).join("")}
         </select>
       </label>
@@ -2663,7 +2799,7 @@ function renderGuardianFilters(events, actionMarkup = "") {
 }
 
 function renderGuardianHome() {
-  setPage("PARENT", "통합 타임라인");
+  setPage("PARENT", "자녀 현황");
   const scope = guardianScope();
   const allEvents = guardianTimelineEvents();
   const timelineFilters = guardianFilters(allEvents);
@@ -2678,58 +2814,110 @@ function renderGuardianHome() {
     return true;
   });
   const unread = unreadEvents.length;
+  const invoices = (state.invoices || []).filter((item) => item.guardianUserId === currentUser().id);
+  const unpaidInvoices = invoices.filter((item) => item.status !== "paid");
+  const overdueInvoices = invoices.filter((item) => item.status === "overdue");
+  const unreadComments = guardianUnreadCommentEvents().length;
   scope.academyIds.forEach((academyId) => trackUsageOnce("guardian.home_viewed", academyId));
 
-  return `
-    ${scope.studentIds.length ? `
-      <section class="guardian-summary-strip">
-        <span class="badge green">자녀 ${scope.studentIds.length}명</span>
-        <span class="badge gray">연결 학원 ${scope.academyIds.length}곳</span>
-        <span class="badge orange guardian-unread-badge">읽지 않은 알림 ${unread}</span>
-        <button class="button secondary compact" data-action="open-guardian-connect-modal">자녀·학원 추가 연결</button>
-      </section>
-      <section class="child-timeline-grid guardian-child-overview">
-        ${scope.studentIds.map((studentId) => {
-          const academyNames = [...new Set(scope.links
-            .filter((item) => item.studentId === studentId)
-            .map((item) => academyById(item.academyId)?.name)
-            .filter(Boolean))];
-          const academyLabel = academyNames.length ? academyNames.join(" · ") : "연결 학원 없음";
-          const unreadCount = unreadEvents.filter((item) => item.studentId === studentId).length;
-          return `
-            <article class="panel child-timeline-card">
-              <header class="child-card-head">
-                <div class="child-identity">
-                  <h3>${escapeHtml(studentById(studentId)?.name || "자녀")}</h3>
-                </div>
-                <div class="child-event-count">${unreadCount ? `<span class="unread"><small>미열람</small><strong>${unreadCount}</strong></span>` : '<span class="confirmed"><small>모두 확인</small></span>'}</div>
-                <span class="child-academy-count" title="${escapeHtml(academyLabel)}">${escapeHtml(academyLabel)}</span>
-              </header>
-            </article>`;
-        }).join("")}
-      </section>
-      <article class="panel guardian-timeline-panel">
-        <div class="table-wrap record-scroll guardian-timeline-scroll guardian-timeline-table-wrap">
-          <table class="data-table guardian-timeline-table">
-            <thead><tr><th>일시</th><th><select id="guardian-student-filter" class="guardian-timeline-header-select" aria-label="자녀 선택"><option value="all">전체 자녀</option>${scope.studentIds.map((id) => `<option value="${id}" ${timelineFilters.studentId === id ? "selected" : ""}>${escapeHtml(studentById(id)?.name || "자녀")}</option>`).join("")}</select></th><th><select id="guardian-academy-filter" class="guardian-timeline-header-select" aria-label="학원 선택"><option value="all">전체 학원</option>${scope.academyIds.map((id) => `<option value="${id}" ${timelineFilters.academyId === id ? "selected" : ""}>${escapeHtml(academyById(id)?.name || "학원")}</option>`).join("")}</select></th><th>구분</th><th>내용</th><th><select id="guardian-timeline-status-filter" class="guardian-timeline-header-select" aria-label="확인 상태 선택"><option value="all" ${state.guardianTimelineStatusFilter === "all" ? "selected" : ""}>확인 상태</option><option value="unread" ${state.guardianTimelineStatusFilter === "unread" ? "selected" : ""}>미열람</option><option value="read" ${state.guardianTimelineStatusFilter === "read" ? "selected" : ""}>확인</option></select></th></tr></thead>
-            <tbody>${visibleEvents.length ? visibleEvents.map((item) => {
-              const isUnread = unreadIds.has(item.id);
-              return `<tr class="${isUnread ? "unread" : "read"}" ${isUnread ? `data-action="read-notification" data-notification-id="${item.id}"` : ""}>
-                <td data-label="일시">${formatDateTime(item.createdAt)}</td>
-                <td data-label="자녀"><strong>${escapeHtml(studentById(item.studentId)?.name || "자녀")}</strong></td>
-                <td data-label="학원">${escapeHtml(academyById(item.academyId)?.name || "학원")}</td>
-                <td data-label="구분"><span class="badge ${item.tone}">${escapeHtml(item.type)}</span></td>
-                <td data-label="내용" class="guardian-timeline-content"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></td>
-                <td data-label="확인 상태">${isUnread ? `<button class="timeline-read-button" data-action="read-notification" data-notification-id="${item.id}"><span class="badge orange">미열람</span></button>` : '<span class="badge gray">확인</span>'}</td>
-              </tr>`;
-            }).join("") : '<tr><td colspan="6"><div class="empty-state">선택한 조건의 학원 소식이 없습니다.</div></td></tr>'}</tbody>
-          </table>
-        </div>
-      </article>
-    ` : `<article class="panel guardian-connect-panel">
+  if (!scope.studentIds.length) {
+    return `<article class="panel guardian-connect-panel">
       <div class="panel-head"><div><h2>자녀·학원 연결</h2></div></div>
       ${guardianConnectionForm()}
-    </article>`}
+    </article>`;
+  }
+
+  const selectedStudentId = scope.studentIds.includes(state.guardianTimelineStudentId) ? state.guardianTimelineStudentId : scope.studentIds[0];
+  const selectedSnapshot = guardianChildSnapshot(selectedStudentId);
+  const latestScore = selectedSnapshot.scores.at(-1);
+  const previousScore = selectedSnapshot.scores.at(-2);
+  const scoreChange = latestScore && previousScore ? latestScore.percent - previousScore.percent : null;
+  const growthEvidence = `수업 기록 ${state.attendanceRecords.filter((item) => item.studentId === selectedStudentId).length}건 · 테스트 ${selectedSnapshot.scores.length}건 기준`;
+  const academyRows = scope.links
+    .filter((item) => item.studentId === selectedStudentId)
+    .map((link) => {
+      const academy = academyById(link.academyId);
+      const childInvoices = invoices.filter((item) => item.studentId === link.studentId && item.academyId === link.academyId);
+      const openInvoice = childInvoices.find((item) => item.status !== "paid");
+      const latestAttendance = state.attendanceRecords
+        .filter((item) => item.studentId === link.studentId && item.academyId === link.academyId)
+        .sort((a, b) => b.lessonDate.localeCompare(a.lessonDate))[0];
+      const latestComment = guardianTimelineEvents()
+        .filter((item) => item.studentId === link.studentId && item.academyId === link.academyId && item.type.includes("상담"))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      return { academy, openInvoice, latestAttendance, latestComment };
+    });
+
+  return `
+    <section class="guardian-report-home">
+      <div class="guardian-report-head">
+        <div>
+          <span class="section-eyebrow">PARENT REPORT</span>
+          <h2>오늘 확인할 자녀 현황</h2>
+          <p>출결·결제·상담 답변을 먼저 보고, 성장 기록은 실제 입력 데이터 기준으로 확인합니다.</p>
+        </div>
+        <button class="button secondary compact" data-action="open-guardian-connect-modal">자녀·학원 추가 연결</button>
+      </div>
+      <div class="guardian-child-tabs">
+        ${scope.studentIds.map((studentId) => {
+          const academyCount = scope.links.filter((item) => item.studentId === studentId).length;
+          return `<button class="guardian-child-tab child-timeline-card ${studentId === selectedStudentId ? "active" : ""}" data-action="set-guardian-student" data-student-id="${studentId}">
+            <strong>${escapeHtml(studentById(studentId)?.name || "자녀")}</strong>
+            <small>연결 학원 ${academyCount}곳</small>
+          </button>`;
+        }).join("")}
+      </div>
+      <div class="guardian-check-grid">
+        <article><span>출결</span><strong>${selectedSnapshot.attendanceRate === null ? "기록 없음" : `${selectedSnapshot.attendanceRate}%`}</strong><small>최근 출결 기준</small></article>
+        <article class="${unpaidInvoices.length ? "attention" : ""}"><span>결제</span><strong>${overdueInvoices.length ? `미납 ${overdueInvoices.length}건` : unpaidInvoices.length ? `예정 ${unpaidInvoices.length}건` : "완료"}</strong><small>청구서 기준</small></article>
+        <article class="${unreadComments ? "attention" : ""}"><span>상담 답변</span><strong>${unreadComments ? `새 답변 ${unreadComments}건` : "확인 완료"}</strong><small>학원 소통</small></article>
+        <article class="${unread ? "attention" : ""}"><span>공지·알림</span><strong>${unread ? `${unread}건` : "없음"}</strong><small>미열람 기준</small><em class="badge guardian-unread-badge ${unread ? "orange" : "gray"}">읽지 않은 알림 ${unread}</em></article>
+      </div>
+    </section>
+
+    <section class="guardian-home-layout">
+      <article class="panel guardian-academy-status-panel">
+        <div class="panel-head"><div><h2>학원별 현황</h2><p>자녀가 다니는 학원별 상태를 분리해 봅니다.</p></div></div>
+        <div class="guardian-academy-status-list">
+          ${academyRows.map(({ academy, openInvoice, latestAttendance, latestComment }) => `<div class="guardian-academy-status-row">
+            <div><strong>${escapeHtml(academy?.name || "학원")}</strong><small>${escapeHtml(academy?.mainProgram || "운영 프로그램")}</small></div>
+            <span class="badge ${latestAttendance?.status === "present" ? "green" : latestAttendance ? "orange" : "gray"}">출결 ${latestAttendance ? ({ present: "출석", late: "지각", absent: "결석", early_leave: "조퇴" })[latestAttendance.status] || "확인" : "기록 없음"}</span>
+            <span class="badge ${openInvoice ? openInvoice.status === "overdue" ? "orange" : "purple" : "green"}">${openInvoice ? openInvoice.status === "overdue" ? "미납" : "결제 예정" : "결제 완료"}</span>
+            <span class="status-note">${latestComment ? escapeHtml(latestComment.title) : "새 상담 답변 없음"}</span>
+          </div>`).join("")}
+        </div>
+      </article>
+
+      <article class="panel guardian-growth-brief">
+        <div class="panel-head"><div><h2>성장 기록</h2><p>최근 4주 기록 기준 · ${escapeHtml(growthEvidence)}</p></div><button class="button tertiary compact" data-view-target="growth">자세히</button></div>
+        <div class="guardian-growth-proof-grid">
+          <div><span>과제 완료율</span><strong>${selectedSnapshot.homeworkRate === null ? "-" : `${selectedSnapshot.homeworkRate}%`}</strong><small>완료·대체·면제 포함</small></div>
+          <div><span>테스트 평균</span><strong>${latestScore ? `${latestScore.percent}점` : "-"}</strong><small>${scoreChange === null ? "비교 데이터 부족" : `이전 대비 ${scoreChange > 0 ? "+" : ""}${scoreChange}점`}</small></div>
+          <div><span>연결 학원</span><strong>${selectedSnapshot.childLinks.length}곳</strong><small>검증된 연결 기준</small></div>
+        </div>
+        <div class="growth-evidence-line"><span></span><strong>과장 없이 입력된 출결·과제·테스트만 반영합니다.</strong></div>
+      </article>
+    </section>
+
+    <article class="panel guardian-timeline-panel">
+      <div class="panel-head"><div><h2>최근 알림</h2><p>필요한 항목만 확인하고 넘길 수 있게 정리했습니다.</p></div></div>
+      <div class="table-wrap record-scroll guardian-timeline-scroll guardian-timeline-table-wrap">
+        <table class="data-table guardian-timeline-table">
+          <thead><tr><th>일시</th><th><select id="guardian-student-filter" class="guardian-timeline-header-select" aria-label="자녀 선택"><option value="all">전체 자녀</option>${scope.studentIds.map((id) => `<option value="${id}" ${timelineFilters.studentId === id ? "selected" : ""}>${escapeHtml(studentById(id)?.name || "자녀")}</option>`).join("")}</select></th><th><select id="guardian-academy-filter" class="guardian-timeline-header-select" aria-label="학원 선택"><option value="all">모든 학원</option>${scope.academyIds.map((id) => `<option value="${id}" ${timelineFilters.academyId === id ? "selected" : ""}>${escapeHtml(academyById(id)?.name || "학원")}</option>`).join("")}</select></th><th>구분</th><th>내용</th><th><select id="guardian-timeline-status-filter" class="guardian-timeline-header-select" aria-label="확인 상태 선택"><option value="all" ${state.guardianTimelineStatusFilter === "all" ? "selected" : ""}>확인 상태</option><option value="unread" ${state.guardianTimelineStatusFilter === "unread" ? "selected" : ""}>미열람</option><option value="read" ${state.guardianTimelineStatusFilter === "read" ? "selected" : ""}>확인</option></select></th></tr></thead>
+          <tbody>${visibleEvents.length ? visibleEvents.slice(0, 8).map((item) => {
+            const isUnread = unreadIds.has(item.id);
+            return `<tr class="guardian-event ${isUnread ? "unread" : "read"}" ${isUnread ? `data-action="read-notification" data-notification-id="${item.id}"` : ""}>
+              <td data-label="일시">${formatDateTime(item.createdAt)}</td>
+              <td data-label="자녀"><strong>${escapeHtml(studentById(item.studentId)?.name || "자녀")}</strong></td>
+              <td data-label="학원"><span class="source-tag">${escapeHtml(academyById(item.academyId)?.name || "학원")}</span></td>
+              <td data-label="구분"><span class="badge guardian-type-badge ${guardianEventTypeClass(item.type)}">${escapeHtml(item.type)}</span></td>
+              <td data-label="내용" class="guardian-timeline-content"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></td>
+              <td data-label="확인 상태">${isUnread ? `<button class="timeline-read-button" data-action="read-notification" data-notification-id="${item.id}"><span class="badge orange">미열람</span></button>` : '<span class="badge gray">확인</span>'}</td>
+            </tr>`;
+          }).join("") : '<tr><td colspan="6"><div class="empty-state">선택한 조건의 학원 소식이 없습니다.</div></td></tr>'}</tbody>
+        </table>
+      </div>
+    </article>
   `;
 }
 
@@ -2916,7 +3104,7 @@ function renderGuardianGrowthChart(snapshot, studentName) {
         </div>
       ` : ""}
       <div class="growth-report-entry">
-        <strong>${selectedAcademyId === "all" ? "전체 학원" : escapeHtml(academyById(selectedAcademyId)?.name || "학원")}</strong>
+        <strong>${selectedAcademyId === "all" ? "모든 학원" : escapeHtml(academyById(selectedAcademyId)?.name || "학원")}</strong>
         <button type="button" class="button secondary compact" data-action="open-growth-report" data-academy-id="${selectedAcademyId}" data-subject="${escapeHtml(selectedSubject)}">상세 확인</button>
       </div>
       ${selectedAcademyId === "all" && allSeriesKeys.length > 1 ? `
@@ -3166,7 +3354,7 @@ function renderGuardianNotifications() {
   const unread = events.filter((item) => !state.guardianNotificationReads.includes(item.id)).length;
   return `
     <section class="guardian-summary-strip">
-      <span class="badge ${unread ? "orange" : "gray"}">읽지 않은 알림 ${unread}</span>
+      <span class="badge guardian-unread-badge ${unread ? "orange" : "gray"}">읽지 않은 알림 ${unread}</span>
     </section>
     <article class="panel guardian-notification-panel">
       <div class="panel-head">
@@ -3179,11 +3367,12 @@ function renderGuardianNotifications() {
           return `
             <button class="notification-item ${isRead ? "read" : "unread"}" data-action="read-notification" data-notification-id="${item.id}">
               <span class="notification-dot" aria-hidden="true"></span>
-              <span>
-                <small>${escapeHtml(studentById(item.studentId)?.name || "자녀")} · ${escapeHtml(academyById(item.academyId)?.name || "학원")} · ${item.type}</small>
+              <span class="badge guardian-type-badge ${guardianEventTypeClass(item.type)}">${escapeHtml(item.type)}</span>
+              <span class="notification-main">
                 <strong>${escapeHtml(item.title)}</strong>
                 <em>${escapeHtml(item.detail)}</em>
               </span>
+              <span class="notification-target">${escapeHtml(studentById(item.studentId)?.name || "자녀")}<small>${escapeHtml(academyById(item.academyId)?.name || "학원")}</small></span>
               <time>${formatDateTime(item.createdAt)}</time>
             </button>`;
         }).join("") : '<div class="empty-state">선택한 조건의 알림이 없습니다.</div>'}
@@ -3475,45 +3664,111 @@ function renderOperatorHome() {
   const metrics = state.academies.map((academy) => academyPilotMetrics(academy, range));
   const summary = operatorSummary(metrics);
   const active = state.academies.filter((item) => item.pilotStatus === "active").length;
+  const openRequests = state.supportRequests.filter((item) => item.status !== "resolved");
+  const urgentRequests = openRequests.filter((item) => item.type === "error" || item.status === "open");
+  const lowAttendance = metrics.filter((item) => item.expectedAttendance > 0 && item.attendanceRate < 80);
+  const lowLearning = metrics.filter((item) => item.expectedLearning > 0 && item.learningRate < 80);
+  const priorityIssues = [
+    ...urgentRequests.map((item) => ({
+      type: supportTypeLabel(item.type),
+      title: item.title,
+      academyName: academyById(item.academyId)?.name || "학원",
+      status: supportStatusLabel(item.status),
+      tone: item.type === "error" ? "red" : "orange",
+      updatedAt: item.updatedAt,
+      action: "support"
+    })),
+    ...lowAttendance.map((item) => ({
+      type: "입력률 저하",
+      title: `출결 입력률 ${item.attendanceRate}%`,
+      academyName: item.academy.name,
+      status: "확인 필요",
+      tone: "orange",
+      updatedAt: item.lastActivityAt || "",
+      action: "pilots"
+    })),
+    ...lowLearning.map((item) => ({
+      type: "입력률 저하",
+      title: `학습 입력률 ${item.learningRate}%`,
+      academyName: item.academy.name,
+      status: "확인 필요",
+      tone: "orange",
+      updatedAt: item.lastActivityAt || "",
+      action: "pilots"
+    }))
+  ].sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")).slice(0, 6);
 
   return `
-    <section class="grid four horizontal-metrics">
-      ${metricCard("운영 중", active, `전체 ${state.academies.length}곳`)}
-      ${metricCard("출결 입력률", `${summary.attendanceRate}%`, `${range.days}일 재원 원생 기준`, true)}
-      ${metricCard("학습 입력률", `${summary.learningRate}%`, `${range.days}일 운영 반 기준`)}
-      ${metricCard("학부모 조회율", `${summary.viewRate}%`, "연결 학부모 기준")}
-    </section>
-    <article class="panel">
-      <div class="panel-head">
-        <div><h2>학원별 운영 현황</h2></div>
+    <section class="operator-command-center">
+      <div class="operator-command-head">
+        <div>
+          <span class="section-eyebrow">OPERATOR QUEUE</span>
+          <h2>문제 확인·피드백 센터</h2>
+          <p>여러 학원의 문의, 오류, 입력률 저하를 우선순위로 확인합니다.</p>
+        </div>
         <div class="compact-filters">
           <select id="operator-metric-window" aria-label="운영 지표 기간">
             <option value="1" ${range.days === 1 ? "selected" : ""}>오늘</option>
             <option value="7" ${range.days === 7 ? "selected" : ""}>최근 7일</option>
             <option value="30" ${range.days === 30 ? "selected" : ""}>최근 30일</option>
           </select>
-          <button class="button tertiary compact" data-view-target="pilots">학원 관리</button>
+          <button class="button tertiary compact" data-view-target="support">처리 목록</button>
         </div>
       </div>
-      <div class="table-wrap record-scroll">
-        <table class="data-table">
-          <thead><tr><th>학원</th><th>전환 단계</th><th>출결 입력률</th><th>학습 입력률</th><th>조회율</th><th>미처리</th><th>운영 상태</th></tr></thead>
-          <tbody>
-            ${metrics.map((item) => {
-              return `<tr>
-                <td><div class="cell-stack"><button class="academy-name-button" data-action="open-academy-info" data-academy-id="${item.academy.id}" aria-label="${escapeHtml(item.academy.name)} 등록 정보 보기">${escapeHtml(item.academy.name)}</button><small>최근 활동 ${formatDateTime(item.lastActivityAt)}</small></div></td>
-                <td><strong>${item.completedSteps}/5</strong></td>
-                <td>${item.attendanceRate}%</td>
-                <td>${item.learningRate}%</td>
-                <td>${item.viewRate}%</td>
-                <td><span class="badge ${item.openRequests ? "orange" : "gray"}">${item.openRequests}건</span></td>
-                <td><span class="badge ${pilotStatusTone(item.academy.pilotStatus)}">${pilotStatusLabel(item.academy.pilotStatus)}</span></td>
-              </tr>`;
-            }).join("")}
-          </tbody>
-        </table>
+      <div class="grid four horizontal-metrics operator-stable-metrics">
+        ${metricCard("운영 중", active, `전체 ${state.academies.length}곳`)}
+        ${metricCard("출결 입력률", `${summary.attendanceRate}%`, `${range.days}일 재원 원생 기준`, true)}
+        ${metricCard("학습 입력률", `${summary.learningRate}%`, `${range.days}일 운영 반 기준`)}
+        ${metricCard("학부모 조회율", `${summary.viewRate}%`, "연결 학부모 기준")}
       </div>
-    </article>
+      <div class="operator-issue-metrics">
+        ${metricCard("긴급 문의", urgentRequests.length, "오류·신규 접수", urgentRequests.length > 0)}
+        ${metricCard("오류 접수", openRequests.filter((item) => item.type === "error").length, "미완료 기준", true)}
+        ${metricCard("입력률 저하", lowAttendance.length + lowLearning.length, `${range.days}일 기준`)}
+        ${metricCard("운영 중", active, `전체 ${state.academies.length}곳`)}
+      </div>
+    </section>
+
+    <section class="operator-triage-layout">
+      <article class="panel operator-academy-table-panel">
+        <div class="panel-head"><div><h2>학원별 상태</h2><p>문제가 있는 학원을 먼저 비교합니다.</p></div><button class="button tertiary compact" data-view-target="pilots">학원 관리</button></div>
+        <div class="table-wrap record-scroll">
+          <table class="data-table">
+            <thead><tr><th>학원</th><th>문의</th><th>출결</th><th>학습</th><th>학부모 조회</th><th>상태</th></tr></thead>
+            <tbody>
+              ${metrics.map((item) => `<tr>
+                <td><div class="cell-stack"><button class="academy-name-button" data-action="open-academy-info" data-academy-id="${item.academy.id}" aria-label="${escapeHtml(item.academy.name)} 등록 정보 보기">${escapeHtml(item.academy.name)}</button><small>최근 활동 ${formatDateTime(item.lastActivityAt)}</small></div></td>
+                <td><span class="badge ${item.openRequests ? "orange" : "gray"}">${item.openRequests}건</span></td>
+                <td><span class="badge ${item.attendanceRate < 80 ? "orange" : "green"}">${item.attendanceRate}%</span></td>
+                <td><span class="badge ${item.learningRate < 80 ? "orange" : "green"}">${item.learningRate}%</span></td>
+                <td>${item.viewRate}%</td>
+                <td><span class="badge ${pilotStatusTone(item.academy.pilotStatus)}">${pilotStatusLabel(item.academy.pilotStatus)}</span></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel operator-priority-panel">
+        <div class="panel-head"><div><h2>처리 우선순위</h2><p>클릭 후 처리 목록에서 답변을 남깁니다.</p></div></div>
+        <div class="operator-issue-list">
+          ${priorityIssues.length ? priorityIssues.map((item) => `<button class="operator-issue-row" data-view-target="${item.action}">
+            <span class="badge ${item.tone}">${escapeHtml(item.type)}</span>
+            <strong>${escapeHtml(item.title)}</strong>
+            <small>${escapeHtml(item.academyName)} · ${escapeHtml(item.status)}</small>
+          </button>`).join("") : '<div class="empty-state compact-empty">우선 처리할 문제가 없습니다.</div>'}
+        </div>
+      </article>
+
+      <article class="panel operator-feedback-panel">
+        <div class="panel-head"><div><h2>피드백 흐름</h2><p>접수 내용을 확인하고 처리 상태와 답변을 남깁니다.</p></div></div>
+        <div class="feedback-flow">
+          <span>신규</span><span>확인중</span><span>답변완료</span>
+        </div>
+        <button class="button primary" data-view-target="support">피드백 작성</button>
+        <button class="button secondary" data-view-target="audit">처리 이력</button>
+      </article>
+    </section>
   `;
 }
 
@@ -5055,10 +5310,10 @@ function saveLearning(event) {
       createdAt: new Date().toISOString()
     });
   }
-  addAudit("learning.saved", "class", className, `${className} 일별 학습기록 저장`);
+  addAudit("learning.saved", "class", className, `${className} 주간 학습기록 저장`);
   persistState();
   renderView();
-  toast("학습기록을 저장하고 보호자 홈에 반영했습니다.");
+  toast("주간 학습기록을 저장하고 보호자 홈에 반영했습니다.");
 }
 
 function loadPreviousLearning() {
@@ -6172,6 +6427,11 @@ document.addEventListener("click", (event) => {
   if (actionName === "open-student-modal") openStudentModal();
   if (actionName === "open-csv-modal") openCsvModal();
   if (actionName === "open-guardian-connect-modal") openGuardianConnectModal();
+  if (actionName === "set-guardian-student") {
+    state.guardianTimelineStudentId = action.dataset.studentId;
+    state.guardianGrowthStudentId = action.dataset.studentId;
+    renderView();
+  }
   if (actionName === "select-national-grade") {
     if (nationalAchievement2025[action.dataset.grade]) {
       state.guardianNationalGrade = action.dataset.grade;
@@ -6194,6 +6454,8 @@ document.addEventListener("click", (event) => {
     openGuardianGrowthReport(action.dataset.academyId || "all", action.dataset.subject || "all");
   }
   if (actionName === "load-previous-learning") loadPreviousLearning();
+  if (actionName === "apply-learning-template") appendTextareaValue("#learning-content", learningTemplateText(action.dataset.template));
+  if (actionName === "apply-homework-template") appendTextareaValue("#learning-homework", learningHomeworkTemplateText(action.dataset.template));
   if (actionName === "bulk-attendance") applyBulkAttendance(action.dataset.status);
   if (actionName === "attendance-filter") {
     state.attendanceFilter = action.dataset.filter;

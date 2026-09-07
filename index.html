@@ -8,7 +8,7 @@
       content="모아플로 학원 운영: 학원 관리, 학부모 성장 확인, 운영 지표와 오류·문의 관리"
     />
     <title>MoaFlow · 운영자 기능 완성</title>
-    <link rel="stylesheet" href="./styles.css?v=20260827-04" />
+    <link rel="stylesheet" href="./styles.css?v=20260902-01" />
   </head>
   <body>
     <div id="toast-region" class="toast-region" aria-live="polite"></div>
@@ -29,17 +29,17 @@
           <div id="auth-role-step">
             <h2>모아플로 시작하기</h2>
             <div class="role-options" role="radiogroup" aria-label="로그인 역할">
-              <button class="role-option active" data-auth-role="academy_owner" role="radio" aria-checked="true">
+              <button class="role-option active academy-owner-login academy-instructor-login" data-auth-role="academy" role="radio" aria-checked="true">
                 <svg class="role-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-5h6v5M12 4V1m0 0 4 2-4 2" /></svg>
-                <strong>학원 원장</strong>
-              </button>
-              <button class="role-option" data-auth-role="academy_instructor" role="radio" aria-checked="false">
-                <svg class="role-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-2a4 4 0 0 1 4-4h2M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6-7h7v10h-7m3-5-3 3" /></svg>
-                <strong>학원 강사</strong>
+                <strong>학원</strong>
               </button>
               <button class="role-option" data-auth-role="guardian" role="radio" aria-checked="false">
                 <svg class="role-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-1a3 3 0 1 0 0-6m-14 17v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2m3-7a5 5 0 0 1 5 5v2" /></svg>
                 <strong>학부모</strong>
+              </button>
+              <button class="role-option" data-auth-role="student" role="radio" aria-checked="false">
+                <svg class="role-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V6a2 2 0 0 1 2-2h13v15H6a2 2 0 0 1-2-2Zm3-11h8M7 12h6" /></svg>
+                <strong>학생</strong>
               </button>
             </div>
             <button id="continue-to-phone" class="button primary block">휴대전화로 계속하기</button>
@@ -53,7 +53,7 @@
             <button type="button" id="back-to-role" class="text-button back-button">← 로그인 유형 변경</button>
             <p class="eyebrow">PHONE VERIFY</p>
             <h2 id="auth-form-title">학원 시작하기</h2>
-            <p class="supporting">대표자 또는 담당자 휴대전화로 인증합니다.</p>
+            <p id="auth-form-supporting" class="supporting">대표자 또는 담당자 휴대전화로 인증합니다.</p>
             <label for="phone">휴대전화 번호</label>
             <div class="inline-field">
               <input id="phone" name="phone" inputmode="numeric" autocomplete="tel" value="010-1234-5678" />
@@ -70,9 +70,9 @@
                 inputmode="numeric"
                 maxlength="6"
                 placeholder="6자리 인증번호"
-                autocomplete="one-time-code"
+                autocomplete="off"
               />
-              <p class="field-hint">데모 인증번호는 <strong>123456</strong>입니다.</p>
+              <p class="field-hint">데모 인증번호 <strong>123456</strong>이 자동 입력됩니다.</p>
               <button type="submit" class="button primary block">인증하고 계속하기</button>
             </div>
           </form>
@@ -93,7 +93,7 @@
         <div class="workspace-context">
           <span id="context-label">ACADEMY</span>
           <strong id="context-name">에듀수학학원</strong>
-          <small id="context-detail">등록 학원 수 0</small>
+          <small id="context-detail" class="student-context-detail">등록 학원 수 0</small>
         </div>
 
         <nav id="main-nav" class="main-nav" aria-label="주 메뉴"></nav>
@@ -102,7 +102,7 @@
       <section class="workspace-main">
         <header class="topbar">
           <button id="mobile-nav-toggle" class="icon-button mobile-only" aria-label="메뉴 열기">☰</button>
-          <div>
+          <div class="page-title-row">
             <h1 id="page-title">공통 기반 현황</h1>
           </div>
           <div class="account-menu">
@@ -123,8 +123,8 @@
     </div>
 
     <div id="qa-mode-banner" class="qa-mode-banner hidden" role="status"></div>
-    <script src="./payments.js?v=20260827-04"></script>
-    <script src="./qa-data.js?v=20260827-04"></script>
-    <script src="./app.js?v=20260827-04"></script>
+    <script src="./payments.js?v=20260828-06"></script>
+    <script src="./qa-data.js?v=20260828-06"></script>
+    <script src="./app.js?v=20260902-01"></script>
   </body>
 </html>
